@@ -41,10 +41,6 @@ A powerful Unity Editor tool for finding all references to any asset in your pro
 - Unity 2020.3 or later
 - .NET Standard 2.0 or later
 
-## Contributing
-
-Contributions are welcome! Feel free to submit issues and pull requests. By submitting a pull request, you agree to license your contribution under the terms specified in the [LICENSE](LICENSE) file.
-
 ## License
 
 Free for personal use and indie developers. Commercial licenses available on the Unity Asset Store.
