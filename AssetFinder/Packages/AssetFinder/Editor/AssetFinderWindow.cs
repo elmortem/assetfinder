@@ -183,7 +183,6 @@ namespace AssetFinder
 
                 var searcher = new ObjectReferenceSearcher(_targetAsset, _foundReferences, _lockObject);
                 
-                // Получаем только префабы и ScriptableObject'ы
                 var allAssetPaths = AssetDatabase.GetAllAssetPaths()
                     .Where(path => path.StartsWith("Assets/") && IsSearchableAsset(path))
                     .ToArray();
@@ -255,7 +254,6 @@ namespace AssetFinder
 
         private bool IsSearchableAsset(string assetPath)
         {
-            // Ищем только в префабах и ScriptableObject'ах
             return assetPath.EndsWith(".prefab") || assetPath.EndsWith(".asset") || assetPath.EndsWith(".unity") || assetPath.EndsWith(".mat");
         }
 
@@ -263,7 +261,6 @@ namespace AssetFinder
         {
             await UniTask.SwitchToMainThread();
             
-            // Сначала проверяем зависимости
             var dependencies = AssetDatabase.GetDependencies(assetPath, false);
             var targetPath = AssetDatabase.GetAssetPath(_targetAsset);
             
