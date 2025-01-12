@@ -37,7 +37,6 @@ namespace AssetFinder
             var gameObjectPath = PropertyPathUtils.GetGameObjectPath(gameObject);
             var fullPath = isSceneObject ? $"{sceneName}/{gameObjectPath}" : gameObjectPath;
 
-            // Поиск во всех компонентах
             var components = gameObject.GetComponents<Component>();
             foreach (var component in components)
             {
@@ -52,7 +51,6 @@ namespace AssetFinder
                 );
             }
 
-            // Рекурсивный поиск во всех дочерних объектах
             foreach (Transform child in gameObject.transform)
             {
                 if (token.IsCancellationRequested) return;
@@ -78,14 +76,12 @@ namespace AssetFinder
             if (material == null)
                 return;
 
-            // Проверяем шейдер
             var shader = material.shader;
             if (shader == _targetAsset && AddProcessedObject(material, shader, "Material.shader"))
             {
                 AddReference(material, assetPath, "Material.shader");
             }
 
-            // Проверяем все текстурные свойства
             var propertyCount = ShaderUtil.GetPropertyCount(shader);
             for (int i = 0; i < propertyCount; i++)
             {
@@ -103,7 +99,6 @@ namespace AssetFinder
                 }
             }
 
-            // Проверяем остальные поля через рефлексию
             await SearchObjectForReferencesAsync(material, assetPath, "Material", token);
         }
 
@@ -178,7 +173,6 @@ namespace AssetFinder
                 return;
             }
 
-            // Если это массив или список
             if (value is System.Collections.IEnumerable enumerable && !(value is string))
             {
                 int index = 0;
@@ -188,7 +182,6 @@ namespace AssetFinder
                     
                     if (item != null)
                     {
-                        // Для массивов и списков используем формат path[index]
                         if (item is Object unityObj)
                         {
                             var valuePath = AssetDatabase.GetAssetPath(unityObj);
@@ -209,7 +202,6 @@ namespace AssetFinder
                 return;
             }
 
-            // Если это структура или класс (но не примитивный тип)
             if (!value.GetType().IsPrimitive && value.GetType() != typeof(string))
             {
                 await SearchObjectFieldsAsync(obj as Object, value, assetPath, fieldPath, token);
@@ -237,7 +229,6 @@ namespace AssetFinder
                 }
                 catch (ArgumentException)
                 {
-                    // Пропускаем поля, которые не можем получить
                     continue;
                 }
             }

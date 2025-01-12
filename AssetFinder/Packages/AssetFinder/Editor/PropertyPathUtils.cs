@@ -15,20 +15,17 @@ namespace AssetFinder
             {
                 var part = pathParts[i];
                 
-                // Обработка массивов
                 if (part == "Array" && i + 1 < pathParts.Length && pathParts[i + 1].StartsWith("data["))
                 {
                     var arrayIndex = pathParts[i + 1].Substring(5).TrimEnd(']');
                     elements.Add($"{elements[elements.Count - 1]}[{arrayIndex}]");
                     elements.RemoveAt(elements.Count - 1);
-                    i++; // Пропускаем следующий элемент, так как мы его уже обработали
+                    i++;
                     continue;
                 }
                 
-                // Обработка вложенных типов
                 if (part.Contains("k__BackingField"))
                 {
-                    // Убираем автогенерированное имя для авто-свойств
                     elements.Add(part.Split('>')[0].TrimStart('<'));
                     continue;
                 }

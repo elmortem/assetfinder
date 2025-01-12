@@ -20,7 +20,7 @@ A powerful Unity Editor tool for finding all references to any asset in your pro
 1. Open the Package Manager window in Unity (Window > Package Manager)
 2. Click the "+" button in the top-left corner
 3. Select "Add package from git URL..."
-4. Enter: `https://github.com/elmortem/assetfinder.git?path=AssetFinder\Packages\AssetFinder`
+4. Enter: `https://github.com/elmortem/assetfinder.git?path=AssetFinder/Packages/AssetFinder`
 
 ### Option 2: Manual Installation
 1. Download this repository
