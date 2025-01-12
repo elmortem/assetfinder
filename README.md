@@ -1,2 +1,57 @@
-# assetfinder
-Tool for searching assets where a given asset is used.
+# Asset Finder for Unity
+
+A powerful Unity Editor tool for finding all references to any asset in your project. Whether you're cleaning up unused assets or refactoring your project, Asset Finder helps you track down every usage of materials, prefabs, scriptable objects, and other Unity assets.
+
+## Features
+
+- **Deep Search**: Finds references in:
+  - Scenes
+  - Prefabs
+  - Scriptable Objects
+  - Materials (including shader properties)
+  - And other Unity assets
+- **Detailed Results**: Shows exact paths to referenced assets
+- **Fast & Efficient**: Asynchronous search with progress tracking
+- **Easy to Use**: Simple drag & drop interface
+
+## Installation
+
+### Option 1: Unity Package Manager (Recommended)
+1. Open the Package Manager window in Unity (Window > Package Manager)
+2. Click the "+" button in the top-left corner
+3. Select "Add package from git URL..."
+4. Enter: `https://github.com/elmortem/assetfinder.git?path=AssetFinder\Packages\AssetFinder`
+
+### Option 2: Manual Installation
+1. Download this repository
+2. Copy the `Packages/AssetFinder` folder to your Unity project's `Packages` folder
+
+## Usage
+
+1. Open the Asset Finder window:
+   - Go to `Window > Asset Finder`
+2. Drag & drop any asset you want to find references to
+3. Click "Find References" or wait for automatic search to begin
+4. Review the list of found references:
+   - Each entry shows the asset containing references
+   - Expand entries to see exact paths where the reference is used
+
+## Requirements
+
+- Unity 2020.3 or later
+- .NET Standard 2.0 or later
+
+## Contributing
+
+Contributions are welcome! Feel free to submit issues and pull requests. By submitting a pull request, you agree to license your contribution under the terms specified in the [LICENSE](LICENSE) file.
+
+## License
+
+Free for personal use and indie developers. Commercial licenses available on the Unity Asset Store.
+See the [LICENSE](LICENSE) file for full details.
+
+## Support
+
+If you encounter any issues or have questions:
+1. Check the [Issues](https://github.com/elmortem/assetfinder/issues) page
+2. Create a new issue if your problem isn't already reported

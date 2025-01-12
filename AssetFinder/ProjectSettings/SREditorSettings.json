@@ -1,0 +1,14 @@
+{
+    "_showNameType": 2,
+    "_nameSeparators": [
+        47,
+        46
+    ],
+    "_formerlySerializedTypeOnSceneSave": true,
+    "_formerlySerializedTypeOnAssetSelect": true,
+    "_formerlySerializedTypeOnAssetImport": true,
+    "_doubleCleanOnEditorUpdate": true,
+    "_doubleCleanOnUndoRedo": true,
+    "_doubleCleanOnAssetSave": true,
+    "_duplicateMode": 2
+}

@@ -1,0 +1,43 @@
+Asset Finder License
+
+Copyright (c) 2024 Makar Osokin. All rights reserved.
+
+1. Definitions
+   - "Software" refers to the Asset Finder tool, including all source code, documentation, and associated files
+   - "Author" refers to the original creator of the Asset Finder
+   - "User" refers to any individual or entity using the Software
+   - "Commercial Use" refers to any use of the Software in a commercial setting
+   - "Independent Developer" refers to an individual or company with 5 or fewer employees AND annual revenue under $200,000
+
+2. Personal Use License
+   The Software is available for free personal use under the following conditions:
+   a) Users may use, modify, and adapt the Software for personal projects
+   b) Users may not redistribute modified versions of the Software
+   c) Users may contribute improvements back to the original repository through pull requests
+   d) Any modifications must be for personal use only
+
+3. Commercial Use
+   a) Commercial use of the Software in companies with more than 5 employees or 
+      annual revenue exceeding $200,000 requires a valid license purchased through 
+      the Unity Asset Store
+   b) Independent Developers may use the Software for free, including for 
+      commercial projects
+   c) Each developer in a commercial setting requiring a paid license must have 
+      their own license
+   d) The Software may not be resold, redistributed, or included in other 
+      commercial products
+   e) Only the Author has the right to sell the Software through any marketplace
+
+4. Contributions
+   a) By submitting contributions to the Software's repository, contributors grant the Author
+      permanent rights to include their contributions in both free and commercial versions
+   b) Contributors maintain copyright of their contributions but may not sell them separately
+
+5. Warranty Disclaimer
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+   THE AUTHOR SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING
+   FROM THE USE OF THE SOFTWARE.
+
+6. License Modifications
+   The Author reserves the right to modify this license for future versions of the Software.
+   Such modifications will not affect existing users under the previous license version.
