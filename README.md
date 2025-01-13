@@ -36,6 +36,10 @@ A powerful Unity Editor tool for finding all references to any asset in your pro
    - Each entry shows the asset containing references
    - Expand entries to see exact paths where the reference is used
 
+## Dependencies
+
+- **UniTask**: [GitHub Repository](https://github.com/Cysharp/UniTask) - required for asynchronous operations in Asset Finder.
+
 ## Requirements
 
 - Unity 2020.3 or later

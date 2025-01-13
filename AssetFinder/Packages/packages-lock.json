@@ -11,7 +11,9 @@
       "version": "file:AssetFinder",
       "depth": 0,
       "source": "embedded",
-      "dependencies": {}
+      "dependencies": {
+        "com.cysharp.unitask": "^2.3.0"
+      }
     },
     "com.unity.editorcoroutines": {
       "version": "1.0.0",
