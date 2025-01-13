@@ -7,19 +7,22 @@
     "email": "elmortem@gmail.com", 
     "url": "https://makar.rs"
   },
-  "version": "1.0.0",
+  "version": "1.1.0",
   "unity": "2022.3",
   "description": "Tools for searching Unity assets where a target asset is used.",
   "keywords": [
     "asset",
-	"assets",
-	"search",
-	"find",
-	"unity",
-	"tools",
-	"utility"
+    "assets",
+    "search",
+    "find",
+    "unity",
+    "tools",
+    "utility"
   ],
   "category": "Editor",
+  "dependencies": {
+    "com.cysharp.unitask": "^2.3.0"
+  },
   "samples": [
     {
       "displayName": "Samples",

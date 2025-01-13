@@ -1,9 +1,9 @@
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
-using Cysharp.Threading.Tasks;
-using System.Linq;
 using System.Threading;
+using AssetFinder.Cache;
+using System;
 using Object = UnityEngine.Object;
 
 namespace AssetFinder
@@ -13,12 +13,7 @@ namespace AssetFinder
         private Object _targetAsset;
         private Vector2 _scrollPosition;
         private readonly List<AssetReference> _foundReferences = new();
-        private bool _isSearching;
-        private float _searchProgress;
-        private string _currentAssetPath;
-        private CancellationTokenSource _cancellationTokenSource;
-        private readonly object _lockObject = new object();
-        private const int MaxConcurrentThreads = 8;
+        private float _rebuildProgress;
 
         [MenuItem("Tools/Asset Finder")]
         public static void ShowWindow()
@@ -28,7 +23,18 @@ namespace AssetFinder
 
         private void OnEnable()
         {
+            AssetCache.Instance.CacheSaveEvent -= OnCacheSaved;
+            AssetCache.Instance.CacheSaveEvent += OnCacheSaved;
+            
             if (_targetAsset != null && _foundReferences.Count == 0)
+            {
+                StartNewSearch();
+            }
+        }
+        
+        private void OnCacheSaved()
+        {
+            if (_targetAsset != null && AssetFinderSettings.Instance.AutoRefresh)
             {
                 StartNewSearch();
             }
@@ -37,258 +43,142 @@ namespace AssetFinder
         private void OnGUI()
         {
             EditorGUILayout.Space(10);
+
+            EditorGUILayout.BeginHorizontal();
             
+            var content = new GUIContent("Rebuild");
+            var toolbarRect = GUILayoutUtility.GetRect(content, EditorStyles.toolbarDropDown);
+            toolbarRect.width = 65f + 16f;
+            
+            var buttonRect = new Rect(toolbarRect.x, toolbarRect.y, toolbarRect.width - 16f, toolbarRect.height);
+            var dropdownRect = new Rect(toolbarRect.x + toolbarRect.width - 16f, toolbarRect.y, 16f, toolbarRect.height);
+            
+            if (GUI.Button(buttonRect, content, EditorStyles.toolbarButton))
+            {
+                RebuildCache(false);
+            }
+            
+            if (EditorGUI.DropdownButton(dropdownRect, GUIContent.none, FocusType.Passive, EditorStyles.toolbarDropDown))
+            {
+                var menu = new GenericMenu();
+                menu.AddItem(new GUIContent("Force Rebuild"), false, () => RebuildCache(true));
+                menu.DropDown(dropdownRect);
+            }
+            
+            var lastRebuildTime = AssetCache.Instance.LastRebuildTime;
+            var timeString = lastRebuildTime == DateTime.MinValue ? "Never" : $"{lastRebuildTime:g}";
+            if (AssetCache.Instance.LastRebuildDuration > 0f)
+                timeString += $" ({AssetCache.Instance.LastRebuildDuration:F3}s)";
+            EditorGUILayout.LabelField($"Last Rebuild: {timeString}", EditorStyles.miniLabel, GUILayout.ExpandWidth(true));
+            
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space(5);
+
             EditorGUILayout.BeginHorizontal();
             EditorGUI.BeginChangeCheck();
-            var newTargetAsset = EditorGUILayout.ObjectField("Asset:", _targetAsset, typeof(Object), false);
-            
-            if (_targetAsset != null && !_isSearching && GUILayout.Button("Refresh", GUILayout.Width(60)))
+            var newTargetAsset = EditorGUILayout.ObjectField(_targetAsset, typeof(Object), false);
+
+            if (_targetAsset != null && GUILayout.Button("Refresh", GUILayout.Width(60)))
             {
                 StartNewSearch();
             }
-            
+            if (EditorGUI.EndChangeCheck() && newTargetAsset != _targetAsset)
+            {
+                _targetAsset = newTargetAsset;
+                StartNewSearch();
+            }
+
             EditorGUILayout.EndHorizontal();
-            
-            if (EditorGUI.EndChangeCheck())
+
+            if (AssetCache.Instance.IsProcessing)
             {
-                if (newTargetAsset != _targetAsset)
-                {
-                    _targetAsset = newTargetAsset;
-                    if (_targetAsset != null)
-                    {
-                        StartNewSearch();
-                    }
-                    else
-                    {
-                        ResetSearch();
-                    }
-                }
+                EditorGUILayout.Space(5);
+                var rect = EditorGUILayout.GetControlRect(false, 16);
+                EditorGUI.ProgressBar(rect, _rebuildProgress, "Processing assets...");
             }
 
-            EditorGUILayout.Space(10);
-            
-            if (_isSearching)
+            EditorGUILayout.Space();
+
+            if (_foundReferences.Count > 0)
             {
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField($"Searching references to '{_targetAsset.name}'... {(_searchProgress * 100):F1}%");
-                if (GUILayout.Button("Cancel", GUILayout.Width(60)))
-                {
-                    ResetSearch();
-                    _targetAsset = null;
-                }
-                EditorGUILayout.EndHorizontal();
-                
-                if (!string.IsNullOrEmpty(_currentAssetPath))
-                {
-                    EditorGUI.ProgressBar(EditorGUILayout.GetControlRect(false, 20), _searchProgress, _currentAssetPath);
-                }
-            }
-            else
-            {
-                EditorGUILayout.Space();
-
-                if (_targetAsset == null)
-                {
-                    EditorGUILayout.HelpBox(
-                        "Drag & Drop an asset here to find all references to it in your project.\n\n" +
-                        "The tool will search through:\n" +
-                        "• Scenes\n" +
-                        "• Prefabs\n" +
-                        "• Scriptable Objects\n" +
-                        "• Materials\n" +
-                        "And other Unity assets.", 
-                        MessageType.Info);
-                    return;
-                }
-
-                if (_foundReferences.Count == 0 && !_isSearching)
-                {
-                    EditorGUILayout.HelpBox(
-                        $"No references found to '{_targetAsset.name}'.\n" +
-                        "Try checking if the asset is actually used in your project.", 
-                        MessageType.Warning);
-                    return;
-                }
-
-                EditorGUILayout.LabelField($"Found References ({_foundReferences.Count}):", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField($"Found references in {_foundReferences.Count} assets:");
                 _scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
-                
+
                 foreach (var reference in _foundReferences)
                 {
                     EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                    
-                    EditorGUILayout.ObjectField(reference.Asset, typeof(Object), false);
-                    
-                    EditorGUI.indentLevel++;
-                    for (int i = 0; i < reference.Paths.Count; i++)
+
+                    EditorGUILayout.BeginHorizontal();
+                    if (GUILayout.Button("Select", GUILayout.Width(60)))
                     {
-                        EditorGUILayout.LabelField($"{i + 1}. {reference.Paths[i]}");
+                        Selection.activeObject = reference.Asset;
+                        EditorGUIUtility.PingObject(reference.Asset);
+                    }
+                    EditorGUILayout.ObjectField(reference.Asset, typeof(Object), false);
+                    EditorGUILayout.EndHorizontal();
+
+                    EditorGUI.indentLevel++;
+                    int num = 0;
+                    foreach (var path in reference.Paths)
+                    {
+                        EditorGUILayout.LabelField($"{++num}. {path}");
                     }
                     EditorGUI.indentLevel--;
-                    
+
                     EditorGUILayout.EndVertical();
-                    EditorGUILayout.Space(5);
+                    EditorGUILayout.Space(2);
                 }
-                
+
                 EditorGUILayout.EndScrollView();
             }
+            else if (_targetAsset != null)
+            {
+                EditorGUILayout.LabelField("No references found.");
+            }
+        }
+
+        private async void RebuildCache(bool force)
+        {
+            _rebuildProgress = 0f;
+            await AssetCache.Instance.RebuildCache(force, p => _rebuildProgress = p);
+            _rebuildProgress = 1f;
         }
 
         private void StartNewSearch()
         {
+            if (_targetAsset == null) return;
+
             ResetSearch();
-            FindReferencesAsync().Forget();
-        }
 
-        private void ResetSearch()
-        {
-            CancelSearch();
-            _foundReferences.Clear();
-            _searchProgress = 0f;
-            _currentAssetPath = string.Empty;
-            Repaint();
-        }
-
-        private void CancelSearch()
-        {
-            if (_cancellationTokenSource != null)
-            {
-                _cancellationTokenSource.Cancel();
-                _cancellationTokenSource.Dispose();
-                _cancellationTokenSource = null;
-            }
-            _isSearching = false;
-        }
-
-        private void OnDestroy()
-        {
-            CancelSearch();
-        }
-
-        private async UniTaskVoid FindReferencesAsync()
-        {
-            if (_targetAsset == null || _isSearching) return;
-
-            _isSearching = true;
-            _searchProgress = 0f;
-            _foundReferences.Clear();
-            
-            _cancellationTokenSource = new CancellationTokenSource();
-            var token = _cancellationTokenSource.Token;
-            
             try
             {
-                string targetPath = AssetDatabase.GetAssetPath(_targetAsset);
-                if (string.IsNullOrEmpty(targetPath)) return;
+                _foundReferences.Clear();
 
-                var searcher = new ObjectReferenceSearcher(_targetAsset, _foundReferences, _lockObject);
+                var rawResults = AssetCache.Instance.FindReferences(_targetAsset);
                 
-                var allAssetPaths = AssetDatabase.GetAllAssetPaths()
-                    .Where(path => path.StartsWith("Assets/") && IsSearchableAsset(path))
-                    .ToArray();
-
-                var totalAssets = allAssetPaths.Length;
-                var processedCount = 0;
-
-                using var semaphore = new SemaphoreSlim(MaxConcurrentThreads);
-                var tasks = new List<UniTask>();
-
-                foreach (var assetPath in allAssetPaths)
+                foreach (var (assetGuid, paths) in rawResults)
                 {
-                    if (token.IsCancellationRequested) break;
-
-                    await semaphore.WaitAsync(token);
-
-                    var task = UniTask.RunOnThreadPool(async () =>
-                    {
-                        try
-                        {
-                            await ProcessAssetAsync(searcher, assetPath, token);
-                        }
-                        finally
-                        {
-                            lock (_lockObject)
-                            {
-                                processedCount++;
-                                _searchProgress = processedCount / (float)totalAssets;
-                            }
-							
-                            semaphore.Release();
-                        }
-                    }, true, token);
-
-                    tasks.Add(task);
-
-                    if (tasks.Count % 10 == 0)
-                    {
-                        await UniTask.SwitchToMainThread(token);
-                        Repaint();
-                        await UniTask.Yield();
-                    }
-                }
-
-                await UniTask.WhenAll(tasks);
-
-                if (!token.IsCancellationRequested)
-                {
-                    await UniTask.SwitchToMainThread();
-                    _foundReferences.Clear();
-                    _foundReferences.AddRange(searcher.GetResults());
-                    _currentAssetPath = "Search completed!";
-                    await UniTask.Delay(1000, cancellationToken: token);
-                }
-                else
-                {
-                    _targetAsset = null;
+                    var assetPath = AssetDatabase.GUIDToAssetPath(assetGuid);
+                    var asset = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
+                    if (asset == null) continue;
+                    
+                    var reference = new AssetReference(asset);
+                    reference.Paths.UnionWith(paths);
+                    _foundReferences.Add(reference);
                 }
                 
-                CancelSearch();
                 Repaint();
             }
             finally
             {
-                CancelSearch();
                 Repaint();
             }
         }
 
-        private bool IsSearchableAsset(string assetPath)
+        private void ResetSearch()
         {
-            return assetPath.EndsWith(".prefab") || assetPath.EndsWith(".asset") || assetPath.EndsWith(".unity") || assetPath.EndsWith(".mat");
-        }
-
-        private async UniTask ProcessAssetAsync(ObjectReferenceSearcher searcher, string assetPath, CancellationToken token)
-        {
-            await UniTask.SwitchToMainThread();
-            
-            var dependencies = AssetDatabase.GetDependencies(assetPath, false);
-            var targetPath = AssetDatabase.GetAssetPath(_targetAsset);
-            
-            if (dependencies.Contains(targetPath))
-            {
-                var asset = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
-                if (asset == null) 
-                    return;
-
-                _currentAssetPath = assetPath;
-
-                if (asset is ScriptableObject scriptableObject)
-                {
-                    await searcher.SearchScriptableObjectAsync(scriptableObject, assetPath, token);
-                }
-                else if (asset is GameObject gameObject)
-                {
-                    await searcher.SearchGameObjectAsync(gameObject, assetPath, token);
-                }
-                else if (asset is Material material)
-                {
-                    await searcher.SearchMaterialAsync(material, assetPath, token);
-                }
-                else if (asset is SceneAsset sceneAsset)
-                {
-                    await searcher.SearchSceneAsync(sceneAsset, assetPath, token);
-                }
-            }
+            _foundReferences.Clear();
         }
     }
 }
