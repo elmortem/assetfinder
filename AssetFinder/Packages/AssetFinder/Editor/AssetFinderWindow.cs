@@ -18,10 +18,10 @@ namespace AssetFinder
 		private int _processingDrawIndex;
 		private readonly List<AssetReference> _foundReferences = new();
 
-		[MenuItem("Tools/Asset Finder")]
+		[MenuItem("Tools/Asset Scout")]
 		public static void ShowWindow()
 		{
-			GetWindow<AssetFinderWindow>("Asset Finder");
+			GetWindow<AssetFinderWindow>("Asset Scout");
 		}
 
 		private void OnEnable()
