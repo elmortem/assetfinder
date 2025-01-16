@@ -1,19 +1,21 @@
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
-using System.Threading;
 using AssetFinder.Cache;
 using System;
+using Cysharp.Threading.Tasks;
 using Object = UnityEngine.Object;
 
 namespace AssetFinder
 {
     public class AssetFinderWindow : EditorWindow
     {
+        private readonly char[] _animChars = { '|', '|', '/', '/', '-', '-', '\\', '\\' };
+        
         private Object _targetAsset;
         private Vector2 _scrollPosition;
+		private int _processingDrawIndex;
         private readonly List<AssetReference> _foundReferences = new();
-        private float _rebuildProgress;
 
         [MenuItem("Tools/Asset Finder")]
         public static void ShowWindow()
@@ -55,13 +57,13 @@ namespace AssetFinder
             
             if (GUI.Button(buttonRect, content, EditorStyles.toolbarButton))
             {
-                RebuildCache(false);
+                RebuildCache(false).Forget();
             }
             
             if (EditorGUI.DropdownButton(dropdownRect, GUIContent.none, FocusType.Passive, EditorStyles.toolbarDropDown))
             {
                 var menu = new GenericMenu();
-                menu.AddItem(new GUIContent("Force Rebuild"), false, () => RebuildCache(true));
+                menu.AddItem(new GUIContent("Force Rebuild"), false, () => RebuildCache(true).Forget());
                 menu.DropDown(dropdownRect);
             }
             
@@ -71,6 +73,15 @@ namespace AssetFinder
                 timeString += $" ({AssetCache.Instance.LastRebuildDuration:F3}s)";
             EditorGUILayout.LabelField($"Last Rebuild: {timeString}", EditorStyles.miniLabel, GUILayout.ExpandWidth(true));
             
+            if (AssetCache.Instance.IsProcessing)
+            {
+				_processingDrawIndex++;
+				if (_processingDrawIndex % _animChars.Length == 0)
+					_processingDrawIndex = 0;
+                
+				EditorGUILayout.LabelField(_animChars[_processingDrawIndex] + " Processing...", EditorStyles.miniLabel, GUILayout.ExpandWidth(false));
+			}
+
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space(5);
@@ -90,13 +101,6 @@ namespace AssetFinder
             }
 
             EditorGUILayout.EndHorizontal();
-
-            if (AssetCache.Instance.IsProcessing)
-            {
-                EditorGUILayout.Space(5);
-                var rect = EditorGUILayout.GetControlRect(false, 16);
-                EditorGUI.ProgressBar(rect, _rebuildProgress, "Processing assets...");
-            }
 
             EditorGUILayout.Space();
 
@@ -132,24 +136,53 @@ namespace AssetFinder
 
                 EditorGUILayout.EndScrollView();
             }
-            else if (_targetAsset != null)
+            
+            if (_targetAsset == null)
             {
-                EditorGUILayout.LabelField("No references found.");
+                EditorGUILayout.HelpBox(
+                    "Drag & Drop an asset here to find all references to it in your project.\n\n" +
+                    "The tool will search through:\n" +
+                    "• Scenes\n" +
+                    "• Prefabs\n" +
+                    "• Scriptable Objects\n" +
+                    "• Materials\n" +
+                    "And other Unity assets.", 
+                    MessageType.Info);
+                return;
+            }
+
+            if (_foundReferences.Count == 0 && _targetAsset != null)
+            {
+                EditorGUILayout.HelpBox(
+                    $"No references found to '{_targetAsset.name}'.\n" +
+                    "Try checking if the asset is actually used in your project.", 
+                    MessageType.Warning);
+                return;
             }
         }
 
-        private async void RebuildCache(bool force)
+        private async UniTaskVoid RebuildCache(bool force)
         {
-            _rebuildProgress = 0f;
-            await AssetCache.Instance.RebuildCache(force, p => _rebuildProgress = p);
-            _rebuildProgress = 1f;
+            try
+            {
+                EditorUtility.DisplayProgressBar("Rebuilding Asset Finder Cache", "Please wait...", 0.001f);
+                await AssetCache.Instance.RebuildCache(force, p => 
+                {
+                    EditorUtility.DisplayProgressBar("Rebuilding Asset Finder Cache", $"Progress: {(p * 100f):F2}%", p);
+                });
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+            }
         }
 
         private void StartNewSearch()
         {
-            if (_targetAsset == null) return;
-
             ResetSearch();
+            
+            if (_targetAsset == null) 
+                return;
 
             try
             {

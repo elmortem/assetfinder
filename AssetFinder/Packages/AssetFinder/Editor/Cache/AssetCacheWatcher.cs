@@ -13,27 +13,15 @@ namespace AssetFinder.Cache
             string[] movedAssets,
             string[] movedFromAssetPaths)
         {
-            if (!AssetFinderSettings.Instance.AutoUpdateCache)
+            if (!AssetFinderSettings.Instance.AutoUpdateCache || AssetCache.Instance.IsRebuilding)
                 return;
             
-			var changedAssets = importedAssets.Concat(deletedAssets).Where(p => CorrectPath(p)).ToArray();
+			var changedAssets = importedAssets.Concat(deletedAssets).Where(AssetCache.CorrectPath).ToArray();
             if (changedAssets.Length > 0)
             {
                 ProcessChangedAssets(changedAssets);
             }
 		}
-        
-        private static bool CorrectPath(string path)
-        {
-            if (!path.StartsWith("Assets"))
-                return false;
-
-            var ext = Path.GetExtension(path).ToLower();
-            if (ext == ".meta" || ext == ".cs" || ext == ".asmdef" || ext == ".asmref" || ext == ".dll")
-                return false;
-
-            return true;
-        }
 
         private static void ProcessChangedAssets(string[] changedAssets)
         {
