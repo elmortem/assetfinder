@@ -16,3 +16,6 @@ MonoBehaviour:
   _privateMaterial: {fileID: 2100000, guid: 0a2dd8f451e470d499834c045d209894, type: 2}
   PublicAnimationClip: {fileID: 7400000, guid: 160fb62d1fab4d248ab10a4e4ac6e5ac, type: 2}
   _privateAnimationClip: {fileID: 7400000, guid: c7933840c0a21494d83c96e16175d3a9, type: 2}
+  PublicSprites:
+  - {fileID: 21300000, guid: 024b7ff0a744c1344a763976568869b9, type: 3}
+  _privateSprites: []

@@ -11,264 +11,296 @@ using Object = UnityEngine.Object;
 
 namespace AssetFinder
 {
-    internal static class ObjectReferenceSearcher
-    {
-        private static readonly HashSet<(Object obj, Object target, string path)> _processedObjects = new();
+	internal static class ObjectReferenceSearcher
+	{
+		private static readonly HashSet<(Object obj, Object target, string path)> _processedObjects = new();
 
-        public static async UniTask<List<string>> FindReferencePaths(Object sourceAsset, Object targetAsset, CancellationToken token)
-        {
-            if (sourceAsset == null || targetAsset == null)
-                return new List<string>();
+		public static async UniTask<List<string>> FindReferencePaths(Object sourceAsset, Object targetAsset, CancellationToken token)
+		{
+			if (sourceAsset == null || targetAsset == null)
+				return new List<string>();
 
-            _processedObjects.Clear();
-            var result = new List<string>();
+			_processedObjects.Clear();
+			var result = new List<string>();
 
-            if (sourceAsset is GameObject gameObject)
-            {
-                await SearchGameObjectAsync(gameObject, targetAsset, result, token);
-            }
-            else if (sourceAsset is ScriptableObject scriptableObject)
-            {
-                await SearchScriptableObjectAsync(scriptableObject, targetAsset, result, token);
-            }
-            else if (sourceAsset is Material material)
-            {
-                await SearchMaterialAsync(material, targetAsset, result, token);
-            }
-            else if (sourceAsset is SceneAsset sceneAsset)
-            {
-                await SearchSceneAsync(sceneAsset, targetAsset, result, token);
-            }
+			if (sourceAsset is GameObject gameObject)
+			{
+				await SearchGameObjectAsync(gameObject, targetAsset, result, token);
+			}
+			else if (sourceAsset is ScriptableObject scriptableObject)
+			{
+				await SearchScriptableObjectAsync(scriptableObject, targetAsset, result, token);
+			}
+			else if (sourceAsset is Material material)
+			{
+				await SearchMaterialAsync(material, targetAsset, result, token);
+			}
+			else if (sourceAsset is SceneAsset sceneAsset)
+			{
+				await SearchSceneAsync(sceneAsset, targetAsset, result, token);
+			}
 
-            return result;
-        }
+			return result;
+		}
 
-        private static async UniTask SearchGameObjectAsync(GameObject gameObject, Object targetAsset, List<string> paths, CancellationToken token)
-        {
-            if (gameObject == null)
-                return;
+		private static async UniTask SearchGameObjectAsync(GameObject gameObject, Object targetAsset, List<string> paths, CancellationToken token)
+		{
+			if (gameObject == null)
+				return;
+			
+			var isSceneObject = !string.IsNullOrEmpty(gameObject.scene.path);
+			
+			var sceneName = isSceneObject ? System.IO.Path.GetFileNameWithoutExtension(gameObject.scene.path) : string.Empty;
+			var gameObjectPath = PropertyPathUtils.GetGameObjectPath(gameObject);
+			var fullPath = isSceneObject ? $"{sceneName}/{gameObjectPath}" : gameObjectPath;
 
-            var isSceneObject = !string.IsNullOrEmpty(gameObject.scene.path);
-            var sceneName = isSceneObject ? System.IO.Path.GetFileNameWithoutExtension(gameObject.scene.path) : string.Empty;
-            var gameObjectPath = PropertyPathUtils.GetGameObjectPath(gameObject);
-            var fullPath = isSceneObject ? $"{sceneName}/{gameObjectPath}" : gameObjectPath;
+			var components = gameObject.GetComponents<Component>();
+			foreach (var component in components)
+			{
+				if (token.IsCancellationRequested) 
+					return;
+				if (component == null) 
+					continue;
 
-            var components = gameObject.GetComponents<Component>();
-            foreach (var component in components)
-            {
-                if (token.IsCancellationRequested) return;
-                if (component == null) continue;
+				await SearchObjectForReferencesAsync(
+					component,
+					targetAsset,
+					$"{fullPath}[{component.GetType().Name}]",
+					paths,
+					token
+				);
+			}
 
-                await SearchObjectForReferencesAsync(
-                    component,
-                    targetAsset,
-                    $"{fullPath}[{component.GetType().Name}]",
-                    paths,
-                    token
-                );
-            }
+			foreach (Transform child in gameObject.transform)
+			{
+				if (token.IsCancellationRequested) 
+					return;
+				
+				await SearchGameObjectAsync(child.gameObject, targetAsset, paths, token);
+			}
+		}
 
-            foreach (Transform child in gameObject.transform)
-            {
-                if (token.IsCancellationRequested) return;
-                await SearchGameObjectAsync(child.gameObject, targetAsset, paths, token);
-            }
-        }
+		private static async UniTask SearchScriptableObjectAsync(ScriptableObject scriptableObject, Object targetAsset, List<string> paths, CancellationToken token)
+		{
+			if (scriptableObject == null)
+				return;
 
-        private static async UniTask SearchScriptableObjectAsync(ScriptableObject scriptableObject, Object targetAsset, List<string> paths, CancellationToken token)
-        {
-            if (scriptableObject == null)
-                return;
+			await SearchObjectForReferencesAsync(
+				scriptableObject,
+				targetAsset,
+				scriptableObject.GetType().Name,
+				paths,
+				token
+			);
+		}
 
-            await SearchObjectForReferencesAsync(
-                scriptableObject,
-                targetAsset,
-                scriptableObject.GetType().Name,
-                paths,
-                token
-            );
-        }
+		private static async UniTask SearchMaterialAsync(Material material, Object targetAsset, List<string> paths, CancellationToken token)
+		{
+			if (material == null)
+				return;
+			
+			var shader = material.shader;
+			if (shader == targetAsset && 
+				AddProcessedObject(material, shader, "Material.shader"))
+			{
+				paths.Add("Material.shader");
+			}
 
-        private static async UniTask SearchMaterialAsync(Material material, Object targetAsset, List<string> paths, CancellationToken token)
-        {
-            if (material == null)
-                return;
+			var propertyCount = ShaderUtil.GetPropertyCount(shader);
+			for (int i = 0; i < propertyCount; i++)
+			{
+				if (token.IsCancellationRequested) 
+					return;
 
-            var shader = material.shader;
-            if (shader == targetAsset && AddProcessedObject(material, shader, "Material.shader"))
-            {
-                paths.Add("Material.shader");
-            }
+				if (ShaderUtil.GetPropertyType(shader, i) == ShaderUtil.ShaderPropertyType.TexEnv)
+				{
+					var propertyName = ShaderUtil.GetPropertyName(shader, i);
+					var propertyPath = $"Material.{propertyName}";
+					var texture = material.GetTexture(propertyName);
+					
+					if (HasProcessedObject(material, texture, propertyPath))
+						continue;
+					
+					if (texture == targetAsset && 
+						AddProcessedObject(material, texture, propertyPath))
+					{
+						paths.Add(propertyPath);
+					}
+				}
+			}
 
-            var propertyCount = ShaderUtil.GetPropertyCount(shader);
-            for (int i = 0; i < propertyCount; i++)
-            {
-                if (token.IsCancellationRequested) return;
+			await SearchObjectForReferencesAsync(material, targetAsset, "Material", paths, token);
+		}
 
-                if (ShaderUtil.GetPropertyType(shader, i) == ShaderUtil.ShaderPropertyType.TexEnv)
-                {
-                    var propertyName = ShaderUtil.GetPropertyName(shader, i);
-                    var texture = material.GetTexture(propertyName);
+		private static async UniTask SearchSceneAsync(SceneAsset sceneAsset, Object targetAsset, List<string> paths, CancellationToken token)
+		{
+			if (sceneAsset == null)
+				return;
+			
+			var scenePath = AssetDatabase.GetAssetPath(sceneAsset);
+			var scene = SceneManager.GetSceneByPath(scenePath);
+			var needClose = false;
 
-                    if (texture == targetAsset && AddProcessedObject(material, texture, $"Material.{propertyName}"))
-                    {
-                        paths.Add($"Material.{propertyName}");
-                    }
-                }
-            }
+			if (!scene.isLoaded)
+			{
+				needClose = true;
+				scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+			}
 
-            await SearchObjectForReferencesAsync(material, targetAsset, "Material", paths, token);
-        }
+			try
+			{
+				if (!scene.IsValid())
+				{
+					Debug.LogError($"Scene '{scenePath}' is invalid.");
+					return;
+				}
 
-        private static async UniTask SearchSceneAsync(SceneAsset sceneAsset, Object targetAsset, List<string> paths, CancellationToken token)
-        {
-            if (sceneAsset == null)
-                return;
+				foreach (var rootGameObject in scene.GetRootGameObjects())
+				{
+					if (token.IsCancellationRequested) 
+						return;
+					
+					await SearchGameObjectAsync(rootGameObject, targetAsset, paths, token);
+				}
+			}
+			finally
+			{
+				if (scene.isLoaded && needClose)
+				{
+					EditorSceneManager.CloseScene(scene, true);
+				}
+			}
+		}
 
-            var scenePath = AssetDatabase.GetAssetPath(sceneAsset);
-            var scene = SceneManager.GetSceneByPath(scenePath);
+		private static async UniTask SearchObjectForReferencesAsync(Object obj, Object targetAsset, string objectPath, List<string> paths, CancellationToken token)
+		{
+			if (obj == null)
+				return;
+			
+			var type = obj.GetType();
+			while (type != null && type != typeof(Object) && type != typeof(Component) && 
+				type != typeof(MonoBehaviour) && type != typeof(ScriptableObject) && type != typeof(object))
+			{
+				if (token.IsCancellationRequested)
+					return;
 
-            if (!scene.isLoaded)
-            {
-                scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
-            }
+				var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+				foreach (var field in fields)
+				{
+					if (token.IsCancellationRequested)
+						return;
 
-            try
-            {
-                foreach (var rootGameObject in scene.GetRootGameObjects())
-                {
-                    if (token.IsCancellationRequested) return;
-                    await SearchGameObjectAsync(rootGameObject, targetAsset, paths, token);
-                }
-            }
-            finally
-            {
-                if (scene.isLoaded)
-                {
-                    EditorSceneManager.CloseScene(scene, true);
-                }
-            }
-        }
+					var isSerializable = field.IsPublic ||
+						Attribute.IsDefined(field, typeof(SerializeField));
 
-        private static async UniTask SearchObjectForReferencesAsync(Object obj, Object targetAsset, string objectPath, List<string> paths, CancellationToken token)
-        {
-            if (obj == null)
-                return;
+					if (!isSerializable)
+						continue;
 
-            await UniTask.SwitchToMainThread();
+					await SearchFieldAsync(obj, field, targetAsset, $"{objectPath}.{field.Name}", paths, token);
+				}
 
-            var type = obj.GetType();
-            while (type != null)
-            {
-                if (token.IsCancellationRequested)
-                    return;
+				type = type.BaseType;
+			}
+		}
 
-                var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                foreach (var field in fields)
-                {
-                    if (token.IsCancellationRequested)
-                        return;
+		private static async UniTask SearchFieldAsync(object obj, FieldInfo field, Object targetAsset, string fieldPath, List<string> paths, CancellationToken token)
+		{
+			var value = field.GetValue(obj);
+			if (value == null)
+				return;
+			
+			if (value is Object unityObject)
+			{
+				if (HasProcessedObject(obj as Object, unityObject, fieldPath))
+					return;
+				
+				if ((unityObject == targetAsset || 
+					AssetDatabase.GetAssetPath(unityObject) == AssetDatabase.GetAssetPath(targetAsset)) &&
+					AddProcessedObject(obj as Object, unityObject, fieldPath))
+				{
+					paths.Add(fieldPath);
+				}
 
-                    var isSerializable = field.IsPublic ||
-                                        Attribute.IsDefined(field, typeof(SerializeField));
+				return;
+			}
 
-                    if (!isSerializable)
-                        continue;
+			if (value is System.Collections.IEnumerable enumerable && !(value is string))
+			{
+				int index = 0;
+				foreach (var item in enumerable)
+				{
+					if (token.IsCancellationRequested) 
+						return;
 
-                    await SearchFieldAsync(obj, field, targetAsset, $"{objectPath}.{field.Name}", paths, token);
-                }
+					if (item != null)
+					{
+						var itemPath = $"{fieldPath}[{index}]";
+						if (item is Object unityObj)
+						{
+							if (HasProcessedObject(obj as Object, unityObj, itemPath))
+							{
+								index++;
+								continue;
+							}
+							
+							if ((unityObj == targetAsset || 
+								AssetDatabase.GetAssetPath(unityObj) == AssetDatabase.GetAssetPath(targetAsset)) &&
+								AddProcessedObject(obj as Object, unityObj, itemPath))
+							{
+								paths.Add(itemPath);
+							}
+						}
+						else if (!item.GetType().IsPrimitive && item.GetType() != typeof(string))
+						{
+							await SearchObjectFieldsAsync(item, targetAsset, itemPath, paths, token);
+						}
+					}
 
-                type = type.BaseType;
-            }
-        }
+					index++;
+				}
 
-        private static async UniTask SearchFieldAsync(object obj, FieldInfo field, Object targetAsset, string fieldPath, List<string> paths, CancellationToken token)
-        {
-            var value = field.GetValue(obj);
-            if (value == null)
-                return;
+				return;
+			}
 
-            if (value is Object unityObject)
-            {
-                var valuePath = AssetDatabase.GetAssetPath(unityObject);
-                var targetPath = AssetDatabase.GetAssetPath(targetAsset);
+			if (!value.GetType().IsPrimitive && value.GetType() != typeof(string))
+			{
+				await SearchObjectFieldsAsync(value, targetAsset, fieldPath, paths, token);
+			}
+		}
 
-                if ((unityObject == targetAsset || valuePath == targetPath) &&
-                    AddProcessedObject(obj as Object, unityObject, fieldPath))
-                {
-                    paths.Add(fieldPath);
-                }
+		private static async UniTask SearchObjectFieldsAsync(object obj, Object targetAsset, string objectPath, List<string> paths, CancellationToken token)
+		{
+			if (obj == null)
+				return;
+			
+			var type = obj.GetType();
+			var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
-                return;
-            }
+			foreach (var field in fields)
+			{
+				if (token.IsCancellationRequested) 
+					return;
 
-            if (value is System.Collections.IEnumerable enumerable && !(value is string))
-            {
-                int index = 0;
-                foreach (var item in enumerable)
-                {
-                    if (token.IsCancellationRequested) return;
+				if (!field.IsPublic && !Attribute.IsDefined(field, typeof(SerializeField)))
+					continue;
 
-                    if (item != null)
-                    {
-                        if (item is Object unityObj)
-                        {
-                            var valuePath = AssetDatabase.GetAssetPath(unityObj);
-                            var targetPath = AssetDatabase.GetAssetPath(targetAsset);
+				try
+				{
+					await SearchFieldAsync(obj, field, targetAsset, $"{objectPath}.{field.Name}", paths, token);
+				}
+				catch (ArgumentException)
+				{
+				}
+			}
+		}
 
-                            if ((unityObj == targetAsset || valuePath == targetPath) &&
-                                AddProcessedObject(obj as Object, unityObj, $"{fieldPath}[{index}]"))
-                            {
-                                paths.Add($"{fieldPath}[{index}]");
-                            }
-                        }
-                        else if (!item.GetType().IsPrimitive && item.GetType() != typeof(string))
-                        {
-                            await SearchObjectFieldsAsync(item, targetAsset, $"{fieldPath}[{index}]", paths, token);
-                        }
-                    }
-
-                    index++;
-                }
-
-                return;
-            }
-
-            if (!value.GetType().IsPrimitive && value.GetType() != typeof(string))
-            {
-                await SearchObjectFieldsAsync(value, targetAsset, fieldPath, paths, token);
-            }
-        }
-
-        private static async UniTask SearchObjectFieldsAsync(object obj, Object targetAsset, string objectPath, List<string> paths, CancellationToken token)
-        {
-            if (obj == null)
-                return;
-
-            var type = obj.GetType();
-            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-
-            foreach (var field in fields)
-            {
-                if (token.IsCancellationRequested) 
-                    return;
-
-                if (!field.IsPublic && !Attribute.IsDefined(field, typeof(SerializeField)))
-                    continue;
-
-                try
-                {
-                    await SearchFieldAsync(obj, field, targetAsset, $"{objectPath}.{field.Name}", paths, token);
-                }
-                catch (ArgumentException)
-                {
-                }
-            }
-        }
-
-        private static bool AddProcessedObject(Object obj, Object target, string path)
-        {
-            return _processedObjects.Add((obj, target, path));
-        }
-    }
+		private static bool HasProcessedObject(Object obj, Object target, string path)
+		{
+			return _processedObjects.Contains((obj, target, path));
+		}
+		private static bool AddProcessedObject(Object obj, Object target, string path)
+		{
+			return _processedObjects.Add((obj, target, path));
+		}
+	}
 }

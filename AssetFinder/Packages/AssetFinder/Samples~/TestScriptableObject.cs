@@ -14,5 +14,10 @@ namespace AssetFinder.Samples
 		
 		[SerializeField]
 		private AnimationClip _privateAnimationClip;
+		
+		public Sprite[] PublicSprites;
+		
+		[SerializeField]
+		private Sprite[] _privateSprites;
 	}
 }

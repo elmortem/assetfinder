@@ -31,6 +31,7 @@ namespace AssetFinder.Cache
 
         public DateTime LastRebuildTime => _lastRebuildTime;
         public float LastRebuildDuration => _lastRebuildDuration;
+        public bool IsRebuilding => _rebuildCts != null;
         public bool IsProcessing => _processingCount > 0;
 
         private AssetCache()
@@ -41,7 +42,6 @@ namespace AssetFinder.Cache
 
         public async UniTask RebuildCache(bool force = false, Action<float> onProgress = null, CancellationToken cancellationToken = default)
         {
-            // Отменяем текущую обработку
             CancelProcessing();
 
             lock (_lockObject)
@@ -60,11 +60,10 @@ namespace AssetFinder.Cache
                     _assetCache.Clear();
                 }
 
-                // Ищем только ассеты в папке Assets
-                var allAssets = AssetDatabase.FindAssets("t:GameObject t:ScriptableObject t:Material t:SceneAsset", new[] { "Assets" });
+                var allAssets = AssetDatabase.FindAssets("t:GameObject t:ScriptableObject t:Material t:SceneAsset",
+                    new[] { "Assets" });
                 var assetsToProcess = new List<string>();
 
-                // Если force == false, обрабатываем только измененные файлы
                 if (!force)
                 {
                     foreach (var guid in allAssets)
@@ -72,7 +71,6 @@ namespace AssetFinder.Cache
                         var path = AssetDatabase.GUIDToAssetPath(guid);
                         var lastModified = File.GetLastWriteTime(path).Ticks;
 
-                        // Если ассет не в кеше или был изменен - добавляем его в список на обработку
                         if (!_assetCache.TryGetValue(guid, out var entry) || entry.LastModifiedTime != lastModified)
                         {
                             assetsToProcess.Add(guid);
@@ -89,15 +87,15 @@ namespace AssetFinder.Cache
                     var processedCount = 0;
                     var totalCount = assetsToProcess.Count;
 
-                    // Создаем обработчик прогресса для ProcessAssetsAsync
-                    var progressHandler = new Progress<string>(_ =>
+                    void OnProgress(string guid)
                     {
                         processedCount++;
-                        onProgress?.Invoke(processedCount / (float)totalCount);
-                    });
+                        var value = processedCount / (float)totalCount;
+                        onProgress?.Invoke(value);
+                    }
 
-                    // Запускаем обработку с отслеживанием прогресса
-                    await ProcessAssetsWithProgress(assetsToProcess, progressHandler, token, aggressive: true);
+                    await ProcessAssetsWithProgress(assetsToProcess, OnProgress, token, aggressive: true);
+                    onProgress?.Invoke(1f);
                 }
 
 				_lastRebuildTime = DateTime.Now;
@@ -114,16 +112,17 @@ namespace AssetFinder.Cache
                         _rebuildCts = null;
                     }
                 }
-                onProgress?.Invoke(1f);
+                
+                Debug.Log($"Rebuild cache finished in {_lastRebuildDuration} seconds.");
             }
         }
 
-        private async UniTask ProcessAssetsWithProgress(List<string> assets, IProgress<string> progress, CancellationToken token, bool aggressive = false)
+        private async UniTask ProcessAssetsWithProgress(List<string> assets, Action<string> onProgress, CancellationToken token, bool aggressive = false)
         {
             if (aggressive)
             {
                 var tasks = new List<UniTask>();
-                var batchSize = 100;
+                var batchSize = Mathf.Max(10, Mathf.Min(100, Mathf.FloorToInt(500 / Mathf.Sqrt(assets.Count))));
 
                 for (var i = 0; i < assets.Count; i += batchSize)
                 {
@@ -142,10 +141,10 @@ namespace AssetFinder.Cache
 
                     foreach (var guid in currentBatch)
                     {
-                        progress?.Report(guid);
+                        onProgress?.Invoke(guid);
                     }
                     
-                    await UniTask.Yield(PlayerLoopTiming.Update);
+                    //await UniTask.Yield(PlayerLoopTiming.Update);
                 }
             }
             else
@@ -157,11 +156,11 @@ namespace AssetFinder.Cache
 
                     await UniTask.Yield(PlayerLoopTiming.Update);
                     await ProcessAsset(guid, token);
-                    progress?.Report(guid);
+                    onProgress?.Invoke(guid);
                 }
             }
         }
-
+        
         public Dictionary<string, HashSet<string>> FindReferences(Object targetAsset)
         {
             if (!_isInitialized)
@@ -200,8 +199,7 @@ namespace AssetFinder.Cache
                 LastModifiedTime = File.GetLastWriteTime(assetPath).Ticks
             };
 
-            var dependencies = AssetDatabase.GetDependencies(assetPath, false);
-            
+            var dependencies = AssetDatabase.GetDependencies(assetPath, false).Where(CorrectPath).ToArray();
             foreach (var dependencyPath in dependencies)
             {
                 if (dependencyPath == assetPath)
@@ -210,13 +208,13 @@ namespace AssetFinder.Cache
                 var dependencyAsset = AssetDatabase.LoadAssetAtPath<Object>(dependencyPath);
                 if (dependencyAsset == null)
                     continue;
+                
+                var dependencyGuid = AssetDatabase.AssetPathToGUID(dependencyPath);
+                if (string.IsNullOrEmpty(dependencyGuid))
+                    continue;
 
                 var paths = await ObjectReferenceSearcher.FindReferencePaths(asset, dependencyAsset, cancellationToken);
                 if (paths.Count == 0)
-                    continue;
-
-                var dependencyGuid = AssetDatabase.AssetPathToGUID(dependencyPath);
-                if (string.IsNullOrEmpty(dependencyGuid))
                     continue;
 
                 var referenceList = new List<ReferenceInfo>();
@@ -237,18 +235,15 @@ namespace AssetFinder.Cache
 
         public void EnqueueAssetsForProcessing(IEnumerable<string> assetGuids)
         {
-            lock (_lockObject)
+            foreach (var guid in assetGuids)
             {
-                foreach (var guid in assetGuids)
-                {
-                    _assetsToProcess.Enqueue(guid);
-                }
+                _assetsToProcess.Enqueue(guid);
+            }
 
-                if (_processingCts == null)
-                {
-                    _processingCts = new CancellationTokenSource();
-                    ProcessAssetsAsync(_processingCts.Token).Forget();
-                }
+            if (_processingCts == null)
+            {
+                _processingCts = new CancellationTokenSource();
+                ProcessAssetsAsync(_processingCts.Token).Forget();
             }
         }
 
@@ -387,6 +382,18 @@ namespace AssetFinder.Cache
                 Debug.LogError($"Failed to load AssetFinder cache: {e.Message}");
                 _assetCache.Clear();
             }
+        }
+        
+        public static bool CorrectPath(string path)
+        {
+            if (!path.StartsWith("Assets"))
+                return false;
+
+            var ext = Path.GetExtension(path).ToLower();
+            if (ext == ".meta" || ext == ".cs" || ext == ".asmdef" || ext == ".asmref" || ext == ".dll")
+                return false;
+
+            return true;
         }
 
         [Serializable]
