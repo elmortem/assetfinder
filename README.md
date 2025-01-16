@@ -1,6 +1,6 @@
-# Asset Finder for Unity
+# Asset Scout for Unity
 
-A powerful Unity Editor tool for finding all references to any asset in your project. Whether you're cleaning up unused assets or refactoring your project, Asset Finder helps you track down every usage of materials, prefabs, scriptable objects, and other Unity assets.
+A powerful Unity Editor tool for finding all references to any asset in your project. Whether you're cleaning up unused assets or refactoring your project, Asset Scout helps you track down every usage of materials, prefabs, scriptable objects, and other Unity assets.
 
 ## Features
 
@@ -28,8 +28,8 @@ A powerful Unity Editor tool for finding all references to any asset in your pro
 
 ## Usage
 
-1. Open the Asset Finder window:
-   - Go to `Window > Asset Finder`
+1. Open the Asset Scout window:
+   - Go to `Window > Asset Scout`
 2. Drag & drop any asset you want to find references to
 3. Click "Find References" or wait for automatic search to begin
 4. Review the list of found references:
@@ -38,7 +38,7 @@ A powerful Unity Editor tool for finding all references to any asset in your pro
 
 ## Dependencies
 
-- **UniTask**: [GitHub Repository](https://github.com/Cysharp/UniTask) - required for asynchronous operations in Asset Finder.
+- **UniTask**: [GitHub Repository](https://github.com/Cysharp/UniTask) - required for asynchronous operations in Asset Scout.
 
 ## Requirements
 
