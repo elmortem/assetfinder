@@ -1,6 +1,6 @@
 using System;
 using System.Threading;
-using Cysharp.Threading.Tasks;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -15,7 +15,7 @@ namespace AssetFinder
     {
         private static readonly HashSet<(Object obj, Object target, string path)> _processedObjects = new();
 
-        public static async UniTask<Dictionary<string, List<string>>> FindReferencePaths(
+        public static async Task<Dictionary<string, List<string>>> FindReferencePaths(
             Object sourceAsset, 
             IList<string> targetAssetGuids, 
             CancellationToken token)
@@ -46,7 +46,7 @@ namespace AssetFinder
             return result;
         }
 
-        private static async UniTask SearchGameObjectAsync(
+        private static async Task SearchGameObjectAsync(
             GameObject gameObject, IList<string> targetAssetGuids,
             Dictionary<string, List<string>> result, CancellationToken token)
         {
@@ -82,7 +82,7 @@ namespace AssetFinder
             }
         }
 
-        private static async UniTask SearchScriptableObjectAsync(
+        private static async Task SearchScriptableObjectAsync(
             ScriptableObject scriptableObject, IList<string> targetAssetGuids,
             Dictionary<string, List<string>> result, CancellationToken token)
         {
@@ -98,7 +98,7 @@ namespace AssetFinder
             );
         }
 
-        private static async UniTask SearchMaterialAsync(
+        private static async Task SearchMaterialAsync(
             Material material, IList<string> targetAssetGuids,
             Dictionary<string, List<string>> result, CancellationToken token)
         {
@@ -149,7 +149,7 @@ namespace AssetFinder
             await SearchObjectForReferencesAsync(material, targetAssetGuids, "Material", result, token);
         }
 
-        private static async UniTask SearchSceneAsync(
+        private static async Task SearchSceneAsync(
             SceneAsset sceneAsset, IList<string> targetAssetGuids,
             Dictionary<string, List<string>> result, CancellationToken token)
         {
@@ -191,8 +191,8 @@ namespace AssetFinder
             }
         }
 
-        private static async UniTask SearchObjectForReferencesAsync(
-            Object obj, IList<string> targetAssetGuids,
+        private static async Task SearchObjectForReferencesAsync(
+            object obj, IList<string> targetAssetGuids,
             string objectPath, Dictionary<string, List<string>> result, CancellationToken token)
         {
             if (obj == null)
@@ -222,7 +222,7 @@ namespace AssetFinder
             }
         }
 
-        private static async UniTask SearchFieldAsync(
+        private static async Task SearchFieldAsync(
             object obj, FieldInfo field, IList<string> targetAssetGuids,
             string fieldPath, Dictionary<string, List<string>> result, CancellationToken token)
         {
@@ -261,6 +261,10 @@ namespace AssetFinder
                             result[itemGuid].Add(itemPath);
                         }
                     }
+					else
+					{
+						await SearchObjectForReferencesAsync(item, targetAssetGuids, $"{fieldPath}[{index}]", result, token);
+					}
 
                     index++;
                 }
@@ -271,7 +275,7 @@ namespace AssetFinder
             }
         }
 
-        private static async UniTask SearchObjectFieldsAsync(
+        private static async Task SearchObjectFieldsAsync(
             object obj, IList<string> targetAssetGuids,
             string objectPath, Dictionary<string, List<string>> result, CancellationToken token)
         {

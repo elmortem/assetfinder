@@ -2,7 +2,7 @@
     "name": "Asset Finder",
     "rootNamespace": "AssetFinder",
     "references": [
-        "UniTask"
+        "Unity.EditorCoroutines.Editor"
     ],
     "includePlatforms": [
         "Editor"
