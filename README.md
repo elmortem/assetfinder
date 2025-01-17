@@ -1,6 +1,6 @@
 # Asset Scout for Unity
 
-![color:ff69b4](https://img.shields.io/badge/Unity-2019.3.x-red)
+![color:ff69b4](https://img.shields.io/badge/Unity-2022.3.x-red)
 
 **Please, remove old version Asset Scout before update!**
 
