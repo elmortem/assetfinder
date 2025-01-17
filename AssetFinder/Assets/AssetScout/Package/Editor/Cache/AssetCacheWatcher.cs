@@ -44,7 +44,7 @@ namespace AssetFinder.Cache
                 .Where(guid => !string.IsNullOrEmpty(guid))
                 .ToList();
 
-            AssetCache.Instance.EnqueueAssetsForProcessing(guidsToProcess).Forget();
+            AssetCache.Instance.EnqueueAssetsForProcessing(guidsToProcess);
         }
     }
 }

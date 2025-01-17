@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
-using Cysharp.Threading.Tasks;
+using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using System.Linq;
@@ -13,8 +13,7 @@ namespace AssetFinder.Cache
     public class AssetCache
     {
         private const string CacheFilePath = "Library/AssetFinderCache.json";
-        private static AssetCache _instance;
-
+        
         public static AssetCache Instance { get; } = new();
         
         public event Action CacheSaveEvent;
@@ -40,7 +39,7 @@ namespace AssetFinder.Cache
             _isInitialized = true;
         }
 
-        public async UniTask RebuildCache(bool force = false, Action<int, int> onProgress = null, CancellationToken cancellationToken = default)
+        public async Task RebuildCache(bool force = false, Action<int, int> onProgress = null, CancellationToken cancellationToken = default)
         {
             CancelProcessing();
 
@@ -97,7 +96,7 @@ namespace AssetFinder.Cache
                     onProgress?.Invoke(totalCount, totalCount);
                 }
 
-				_lastRebuildTime = DateTime.Now;
+                _lastRebuildTime = DateTime.Now;
                 _lastRebuildDuration = Time.realtimeSinceStartup - startTime;
                 SaveCache();
             }
@@ -116,11 +115,11 @@ namespace AssetFinder.Cache
             }
         }
 
-        private async UniTask ProcessAssetsWithProgress(List<string> assets, Action<int> onProgress, CancellationToken token, bool aggressive = false)
+        private async Task ProcessAssetsWithProgress(List<string> assets, Action<int> onProgress, CancellationToken token, bool aggressive = false)
         {
             if (aggressive)
             {
-                var tasks = new List<UniTask>();
+                var tasks = new List<Task>();
                 var batchSize = Mathf.Max(10, Mathf.Min(100, Mathf.FloorToInt(500 / Mathf.Sqrt(assets.Count))));
 
                 for (var i = 0; i < assets.Count; i += batchSize)
@@ -136,8 +135,7 @@ namespace AssetFinder.Cache
                         tasks.Add(ProcessAsset(guid, token));
                     }
 
-                    await UniTask.WhenAll(tasks);
-
+                    await Task.WhenAll(tasks);
                     onProgress?.Invoke(currentBatch.Length);
                 }
             }
@@ -147,14 +145,14 @@ namespace AssetFinder.Cache
                 {
                     if (token.IsCancellationRequested)
                         return;
-
-                    await UniTask.Yield(PlayerLoopTiming.Update);
+                    
                     await ProcessAsset(guid, token);
+                    await Task.Delay(1, token);
                     onProgress?.Invoke(1);
                 }
             }
         }
-        
+
         public Dictionary<string, HashSet<string>> FindReferences(Object targetAsset)
         {
             if (!_isInitialized)
@@ -177,50 +175,54 @@ namespace AssetFinder.Cache
             return result;
         }
 
-        public async UniTask ProcessAsset(string assetGuid, CancellationToken cancellationToken)
+        private async Task ProcessAsset(string assetGuid, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _processingCount);
-            var assetPath = AssetDatabase.GUIDToAssetPath(assetGuid);
-            var asset = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
-            if (asset == null) 
-                return;
-
-            //Debug.Log($"Processing: {assetPath}...");
-
-            var entry = new AssetCacheEntry
+            try 
             {
-                References = new Dictionary<string, List<ReferenceInfo>>(),
-                LastModifiedTime = File.GetLastWriteTime(assetPath).Ticks
-            };
+                var assetPath = AssetDatabase.GUIDToAssetPath(assetGuid);
+                var asset = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
+                if (asset == null) 
+                    return;
 
-            var dependencyGuids = AssetDatabase.GetDependencies(assetPath, false)
-                .Where(CorrectPath).Select(AssetDatabase.AssetPathToGUID).ToArray();
-            if (dependencyGuids.Length > 0)
-            {
-                var referenceResults = await ObjectReferenceSearcher.FindReferencePaths(asset,
-                    dependencyGuids, cancellationToken);
-
-                foreach (var dependencyGuid in referenceResults.Keys)
+                var entry = new AssetCacheEntry
                 {
-                    var referenceList = new List<ReferenceInfo>();
-                    foreach (var path in referenceResults[dependencyGuid])
+                    References = new Dictionary<string, List<ReferenceInfo>>(),
+                    LastModifiedTime = File.GetLastWriteTime(assetPath).Ticks
+                };
+
+                var dependencyGuids = AssetDatabase.GetDependencies(assetPath, false)
+                    .Where(CorrectPath).Select(AssetDatabase.AssetPathToGUID).ToArray();
+
+                if (dependencyGuids.Length > 0)
+                {
+                    var referenceResults = await ObjectReferenceSearcher.FindReferencePaths(
+                        asset, dependencyGuids, cancellationToken);
+
+                    foreach (var dependencyGuid in referenceResults.Keys)
                     {
-                        referenceList.Add(new ReferenceInfo(path));
+                        var referenceList = new List<ReferenceInfo>();
+                        foreach (var path in referenceResults[dependencyGuid])
+                        {
+                            referenceList.Add(new ReferenceInfo(path));
+                        }
+
+                        entry.References[dependencyGuid] = referenceList;
                     }
 
-                    entry.References[dependencyGuid] = referenceList;
-                }
-
-                lock (_lockObject)
-                {
-                    _assetCache[assetGuid] = entry;
+                    lock (_lockObject)
+                    {
+                        _assetCache[assetGuid] = entry;
+                    }
                 }
             }
-
-            Interlocked.Decrement(ref _processingCount);
+            finally 
+            {
+                Interlocked.Decrement(ref _processingCount);
+            }
         }
 
-        public async UniTaskVoid EnqueueAssetsForProcessing(IEnumerable<string> assetGuids)
+        public async void EnqueueAssetsForProcessing(IEnumerable<string> assetGuids)
         {
             foreach (var guid in assetGuids)
             {
@@ -237,7 +239,7 @@ namespace AssetFinder.Cache
             }
         }
 
-        private async UniTask ProcessAssetsAsync(CancellationToken token)
+        private async Task ProcessAssetsAsync(CancellationToken token)
         {
             try
             {
@@ -264,7 +266,7 @@ namespace AssetFinder.Cache
                         await ProcessAsset(guid, token);
                     }
 
-                    await UniTask.Yield();
+                    await Task.Delay(1, token);
                 }
             }
             finally

@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using AssetFinder.Cache;
 using System;
 using System.Threading;
-using Cysharp.Threading.Tasks;
 using Object = UnityEngine.Object;
 
 namespace AssetFinder
@@ -58,13 +57,13 @@ namespace AssetFinder
 			
 			if (GUI.Button(buttonRect, content, EditorStyles.toolbarButton))
 			{
-				RebuildCache(false).Forget();
+				RebuildCache(false);
 			}
 			
 			if (EditorGUI.DropdownButton(dropdownRect, GUIContent.none, FocusType.Passive, EditorStyles.toolbarDropDown))
 			{
 				var menu = new GenericMenu();
-				menu.AddItem(new GUIContent("Force Rebuild"), false, () => RebuildCache(true).Forget());
+				menu.AddItem(new GUIContent("Force Rebuild"), false, () => RebuildCache(true));
 				menu.DropDown(dropdownRect);
 			}
 			
@@ -155,7 +154,7 @@ namespace AssetFinder
 			}
 		}
 
-		private async UniTaskVoid RebuildCache(bool force)
+		private async void RebuildCache(bool force)
 		{
 			try
 			{
