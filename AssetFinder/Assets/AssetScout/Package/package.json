@@ -1,33 +1,35 @@
 {
   "displayName": "Asset Scout",
-  "name": "com.elmortem.assetfinder",
+  "name": "com.elmortem.assetscout",
   "author": 
   {
     "name": "Makar Osokin", 
     "email": "elmortem@gmail.com", 
     "url": "https://makar.rs"
   },
-  "version": "1.1.5",
+  "version": "1.2.0",
   "unity": "2022.3",
-  "description": "Unity editor tool for finding all references and dependencies of any asset in your project. Track asset usage in scenes, prefabs, materials, and scriptable objects.\n\nInstall dependencies:\n - UniTask: https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
+  "description": "Gain complete visibility into your project's asset dependencies. Asset Scout is a Unity editor tool that instantly finds all references to any asset – in scenes, prefabs, materials, ScriptableObjects, and even nested prefabs.",
   "keywords": [
     "asset",
     "assets",
     "search",
     "find",
+    "references",
+    "dependency",
+    "dependencies",
+    "prefab",
+    "prefabs",
+    "material",
+    "materials",
+    "scriptable",
+    "scriptableobject",
+    "scriptableobjects",
+    "scene",
+    "scenes",
     "unity",
     "tools",
     "utility"
   ],
-  "category": "Editor",
-  "dependencies": {
-    "com.cysharp.unitask": "^2.3.0"
-  },
-  "samples": [
-    {
-      "displayName": "Samples",
-      "description": "Assets for test Asset Scout.",
-      "path": "Samples~"
-    }
-  ]
+  "category": "Editor"
 }

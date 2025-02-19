@@ -1,50 +1,38 @@
-using System.Collections.Generic;
-using System.IO;
 using UnityEditor;
 using System.Linq;
+using AssetScout.Utilities;
 
-namespace AssetFinder.Cache
+namespace AssetScout.Cache
 {
-    public class AssetCacheWatcher : AssetPostprocessor
-    {
+	public class AssetCacheWatcher : AssetPostprocessor
+	{
 		private static void OnPostprocessAllAssets(
-            string[] importedAssets,
-            string[] deletedAssets,
-            string[] movedAssets,
-            string[] movedFromAssetPaths)
-        {
-            if (!AssetFinderSettings.Instance.AutoUpdateCache || AssetCache.Instance.IsRebuilding)
-                return;
-            
-			var changedAssets = importedAssets.Concat(deletedAssets).Where(AssetCache.CorrectPath).ToArray();
-            if (changedAssets.Length > 0)
-            {
-                ProcessChangedAssets(changedAssets);
-            }
+			string[] importedAssets,
+			string[] deletedAssets,
+			string[] movedAssets,
+			string[] movedFromAssetPaths)
+		{
+			if (!AssetScoutSettings.Instance.AutoUpdateCache || AssetCache.Instance.IsRebuilding)
+				return;
+			
+			var changedAssets = importedAssets.Concat(deletedAssets).Where(AssetUtility.IsBaseAsset).ToArray();
+			if (changedAssets.Length > 0)
+			{
+				ProcessChangedAssets(changedAssets);
+			}
 		}
 
-        private static void ProcessChangedAssets(string[] changedAssets)
-        {
-            if (changedAssets == null || changedAssets.Length == 0)
-                return;
+		private static void ProcessChangedAssets(string[] changedAssets)
+		{
+			if (changedAssets == null || changedAssets.Length == 0)
+				return;
 
-            var uniqueDependentAssets = new HashSet<string>();
+			var guidsToProcess = changedAssets
+				.Select(AssetDatabase.AssetPathToGUID)
+				.Where(guid => !string.IsNullOrEmpty(guid))
+				.ToList();
 
-            foreach (var assetPath in changedAssets)
-            {
-                var guid = AssetDatabase.AssetPathToGUID(assetPath);
-                if (string.IsNullOrEmpty(guid))
-                    continue;
-
-                uniqueDependentAssets.Add(assetPath);
-            }
-
-            var guidsToProcess = uniqueDependentAssets
-                .Select(AssetDatabase.AssetPathToGUID)
-                .Where(guid => !string.IsNullOrEmpty(guid))
-                .ToList();
-
-            AssetCache.Instance.EnqueueAssetsForProcessing(guidsToProcess);
-        }
-    }
+			AssetCache.Instance.EnqueueAssetsForProcessing(guidsToProcess);
+		}
+	}
 }

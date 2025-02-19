@@ -1,8 +1,8 @@
 {
-    "name": "Asset Finder",
-    "rootNamespace": "AssetFinder",
+    "name": "AssetScout.Addressables",
+    "rootNamespace": "AssetScout.Addressables",
     "references": [
-        "Unity.EditorCoroutines.Editor"
+        "AssetScout"
     ],
     "includePlatforms": [
         "Editor"
