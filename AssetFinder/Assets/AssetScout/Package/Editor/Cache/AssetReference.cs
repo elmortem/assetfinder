@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace AssetFinder.Cache
+namespace AssetScout.Cache
 {
 	public class AssetReference
 	{

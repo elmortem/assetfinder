@@ -1,0 +1,91 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Object = UnityEngine.Object;
+
+namespace AssetScout.Crawlers
+{
+	public class AssetCrawler
+	{
+		private readonly List<IAssetCrawler> _crawlers = new();
+		private bool _crawlersInitialized;
+		private readonly HashSet<(Object target, string path)> _processedObjects = new();
+
+		public async Task Crawl(object rootObject, string initialPath,
+			Func<object, TraversalContext, Task<bool>> elementProcessor, CancellationToken cancellationToken)
+		{
+			_processedObjects.Clear();
+			var initialContext = new TraversalContext(rootObject, initialPath, 0);
+			//var initialContext = new TraversalContext(rootObject, string.Empty, 0);
+			await CrawlObject(initialContext, elementProcessor, cancellationToken);
+		}
+
+		private async Task CrawlObject(TraversalContext context,
+			Func<object, TraversalContext, Task<bool>> elementProcessor, CancellationToken cancellationToken)
+		{
+			var currentObject = context.CurrentObject;
+			if (currentObject == null)
+			{
+				return;
+			}
+
+			if (cancellationToken.IsCancellationRequested)
+			{
+				return;
+			}
+
+			if (currentObject is Object unityObject)
+			{
+				(Object target, string path) processedKey = (unityObject, context.CurrentPath);
+
+				if (!_processedObjects.Add(processedKey))
+				{
+					return;
+				}
+			}
+
+			if (!await elementProcessor(currentObject, context))
+			{
+				return;
+			}
+
+			InitializeCrawlers();
+
+			var selectedCrawler = _crawlers.FirstOrDefault(p => p.CanCrawl(currentObject));
+			if (selectedCrawler == null)
+				return;
+
+			var childrenContexts = selectedCrawler.GetChildren(currentObject, context);
+			if (childrenContexts != null)
+			{
+				foreach (var childContext in childrenContexts)
+				{
+					if (childContext == null) 
+						continue;
+					
+					await CrawlObject(childContext, elementProcessor, cancellationToken);
+				}
+			}
+		}
+
+		private void InitializeCrawlers()
+		{
+			if (_crawlersInitialized)
+				return;
+
+			var crawlerTypes = AppDomain.CurrentDomain.GetAssemblies()
+				.SelectMany(assembly => assembly.GetTypes())
+				.Where(type => typeof(IAssetCrawler).IsAssignableFrom(type) && !type.IsInterface && !type.IsAbstract);
+
+			foreach (var type in crawlerTypes)
+			{
+				var crawler = (IAssetCrawler)Activator.CreateInstance(type);
+				_crawlers.Add(crawler);
+			}
+
+			_crawlersInitialized = true;
+		}
+	}
+}
