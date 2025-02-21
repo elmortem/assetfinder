@@ -60,9 +60,9 @@ namespace AssetScout.Cache
 		}
 
 		[SerializeField]
-		private bool _autoUpdateCache;
+		private bool _autoUpdateCache = true;
 		[SerializeField]
-		private bool _autoRefresh;
+		private bool _autoRefresh = true;
 		[SerializeField, HideInInspector]
 		[FormerlySerializedAs("_processorStates")]
 		private List<string> _processorDisabled = new();
