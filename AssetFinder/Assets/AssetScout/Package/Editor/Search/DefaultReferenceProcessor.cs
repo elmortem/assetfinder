@@ -35,11 +35,14 @@ namespace AssetScout.Search
 		public async Task ProcessElement(object element, TraversalContext context, string assetGuid,
 			Dictionary<string, List<string>> result, CancellationToken cancellationToken)
 		{
-			if (!(element is Object))
+			if (!(element is Object) || element == null)
 				return;
 
 			if (element is Object unityObject)
 			{
+				if (unityObject == null)
+					return;
+				
 				if (unityObject is Component)
 					return;
 
@@ -48,64 +51,64 @@ namespace AssetScout.Search
 				{
 					AddReference(result, assetGuid, referencedGuid, context.CurrentPath);
 				}
-			}
-
-			if (element is GameObject go)
-			{
-				try
-				{
-					var prefabType = PrefabUtility.GetPrefabAssetType(go);
-					var isPartOfInstance = PrefabUtility.IsPartOfPrefabInstance(go);
-					var isPartOfAsset = PrefabUtility.IsPartOfPrefabAsset(go);
-
-					if (isPartOfAsset && !isPartOfInstance)
-					{
-						var prefabAsset = PrefabUtility.GetCorrespondingObjectFromSource(go);
-						if (prefabAsset != null)
-						{
-							string prefabAssetGuid =
-								AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(prefabAsset));
-							if (!string.IsNullOrEmpty(prefabAssetGuid))
-							{
-								AddReference(result, assetGuid, prefabAssetGuid, context.CurrentPath);
-							}
-						}
-					}
-					else if (isPartOfInstance)
-					{
-						var prefabAsset = PrefabUtility.GetCorrespondingObjectFromOriginalSource(go);
-
-						if (prefabAsset != null)
-						{
-							string prefabPath = AssetDatabase.GetAssetPath(prefabAsset);
-							string prefabAssetGuid = AssetDatabase.AssetPathToGUID(prefabPath);
-
-							if (!string.IsNullOrEmpty(prefabAssetGuid))
-							{
-								AddReference(result, assetGuid, prefabAssetGuid, context.CurrentPath);
-							}
-						}
-
-						if (prefabType == PrefabAssetType.Variant)
-						{
-							var variantPrefab = PrefabUtility.GetCorrespondingObjectFromSource(go);
-							if (variantPrefab != null)
-							{
-								string variantPath = AssetDatabase.GetAssetPath(variantPrefab);
-								string variantGuid = AssetDatabase.AssetPathToGUID(variantPath);
-
-								if (!string.IsNullOrEmpty(variantGuid))
-								{
-									AddReference(result, assetGuid, variantGuid, context.CurrentPath);
-								}
-							}
-						}
-					}
-				}
-				catch (Exception ex)
-				{
-					Debug.LogError(go + "\n" + ex);
-				}
+				
+				if (unityObject is GameObject go)
+                {
+                	try
+                	{
+                		var prefabType = PrefabUtility.GetPrefabAssetType(go);
+                		var isPartOfInstance = PrefabUtility.IsPartOfPrefabInstance(go);
+                		var isPartOfAsset = PrefabUtility.IsPartOfPrefabAsset(go);
+    
+                		if (isPartOfAsset && !isPartOfInstance)
+                		{
+                			var prefabAsset = PrefabUtility.GetCorrespondingObjectFromSource(go);
+                			if (prefabAsset != null)
+                			{
+                				string prefabAssetGuid =
+                					AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(prefabAsset));
+                				if (!string.IsNullOrEmpty(prefabAssetGuid))
+                				{
+                					AddReference(result, assetGuid, prefabAssetGuid, context.CurrentPath);
+                				}
+                			}
+                		}
+                		else if (isPartOfInstance)
+                		{
+                			var prefabAsset = PrefabUtility.GetCorrespondingObjectFromOriginalSource(go);
+    
+                			if (prefabAsset != null)
+                			{
+                				string prefabPath = AssetDatabase.GetAssetPath(prefabAsset);
+                				string prefabAssetGuid = AssetDatabase.AssetPathToGUID(prefabPath);
+    
+                				if (!string.IsNullOrEmpty(prefabAssetGuid))
+                				{
+                					AddReference(result, assetGuid, prefabAssetGuid, context.CurrentPath);
+                				}
+                			}
+    
+                			if (prefabType == PrefabAssetType.Variant)
+                			{
+                				var variantPrefab = PrefabUtility.GetCorrespondingObjectFromSource(go);
+                				if (variantPrefab != null)
+                				{
+                					string variantPath = AssetDatabase.GetAssetPath(variantPrefab);
+                					string variantGuid = AssetDatabase.AssetPathToGUID(variantPath);
+    
+                					if (!string.IsNullOrEmpty(variantGuid))
+                					{
+                						AddReference(result, assetGuid, variantGuid, context.CurrentPath);
+                					}
+                				}
+                			}
+                		}
+                	}
+                	catch (Exception ex)
+                	{
+                		Debug.LogError(go + "\n" + ex);
+                	}
+                }
 			}
 		}
 
