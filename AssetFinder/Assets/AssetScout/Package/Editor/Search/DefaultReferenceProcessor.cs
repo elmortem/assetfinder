@@ -47,7 +47,7 @@ namespace AssetScout.Search
 					return;
 
 				var referencedGuid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(unityObject));
-				if (!string.IsNullOrEmpty(referencedGuid) && !string.IsNullOrEmpty(assetGuid))
+				if (!string.IsNullOrEmpty(referencedGuid))
 				{
 					AddReference(result, assetGuid, referencedGuid, context.CurrentPath);
 				}
