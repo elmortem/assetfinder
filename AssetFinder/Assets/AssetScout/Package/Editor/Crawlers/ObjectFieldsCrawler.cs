@@ -27,7 +27,7 @@ namespace AssetScout.Crawlers
 				catch (Exception ex) //when (ex is TargetInvocationException || ex is FieldAccessException || 
 									//	   ex is NullReferenceException)
 				{
-					Debug.LogError(ex);
+					Debug.LogError(currentObject + "\n" + ex);
 					continue;
 				}
 
