@@ -71,8 +71,8 @@ namespace AssetScout.Cache
 			{
 				if (force) _assetCache.Clear();
 
-				var allAssets = AssetDatabase.FindAssets("", new[] { "Assets" });
-				//var allAssets = AssetDatabase.FindAssets("t:GameObject t:ScriptableObject t:Material t:SceneAsset t:SpriteAtlas", new[] { "Assets" });
+				//var allAssets = AssetDatabase.FindAssets("", new[] { "Assets" });
+				var allAssets = AssetDatabase.FindAssets("t:GameObject t:ScriptableObject t:Material t:SceneAsset t:SpriteAtlas", new[] { "Assets" });
 				//var allAssets = AssetDatabase.FindAssets("t:GameObject Test", new[] { "Assets" });
 				//var allAssets = AssetDatabase.FindAssets("t:Scene Sample", new[] { "Assets" });
 
