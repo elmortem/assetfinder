@@ -9,7 +9,7 @@ namespace AssetScout.Crawlers
 
 		public IEnumerable<TraversalContext> GetChildren(object currentObject, TraversalContext parentContext)
 		{
-			if (currentObject is GameObject go)
+			if (currentObject is GameObject go && go != null)
 			{
 				foreach (var component in go.GetComponents<Component>())
 				{
