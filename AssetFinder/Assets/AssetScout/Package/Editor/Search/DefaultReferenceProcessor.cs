@@ -104,7 +104,7 @@ namespace AssetScout.Search
 				}
 				catch (Exception ex)
 				{
-					Debug.LogError(ex);
+					Debug.LogError(go + "\n" + ex);
 				}
 			}
 		}
