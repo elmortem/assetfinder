@@ -35,7 +35,7 @@ namespace AssetScout.Search
 		public async Task ProcessElement(object element, TraversalContext context, string assetGuid,
 			Dictionary<string, List<string>> result, CancellationToken cancellationToken)
 		{
-			if (!(element is Object) || element == null)
+			if (element == null || !(element is Object))
 				return;
 
 			if (element is Object unityObject)
