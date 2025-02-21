@@ -290,6 +290,8 @@ namespace AssetScout.Editor
 				EditorUtility.DisplayProgressBar("Rebuilding Asset Finder Cache", "Please wait...", 0.001f);
 				await AssetCache.Instance.RebuildCache(force, (count, max) =>
 				{
+					if (count % 10 != 0) 
+						return;
 					var progress = count / (float)max;
 					if (EditorUtility.DisplayCancelableProgressBar("Rebuilding Asset Finder Cache",
 						$"Progress: {count}/{max} ({progress * 100f:F2}%)", progress))
