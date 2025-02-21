@@ -13,7 +13,7 @@ namespace AssetScout.Crawlers
 
 		public IEnumerable<TraversalContext> GetChildren(object currentObject, TraversalContext parentContext)
 		{
-			if (currentObject is SceneAsset sceneAsset)
+			if (currentObject is SceneAsset sceneAsset && sceneAsset != null)
 			{
 				if (Thread.CurrentThread.ManagedThreadId != 1)
 				{

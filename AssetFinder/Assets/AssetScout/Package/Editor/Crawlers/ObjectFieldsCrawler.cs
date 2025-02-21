@@ -14,6 +14,9 @@ namespace AssetScout.Crawlers
 
 		public IEnumerable<TraversalContext> GetChildren(object currentObject, TraversalContext parentContext)
 		{
+			if (currentObject == null)
+				yield break;
+			
 			var type = currentObject.GetType();
 			var fields = GetSerializedFields(type);
 
