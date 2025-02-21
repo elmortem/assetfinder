@@ -24,9 +24,10 @@ namespace AssetScout.Crawlers
 				{
 					fieldValue = field.GetValue(currentObject);
 				}
-				catch (Exception ex) when (ex is TargetInvocationException || ex is FieldAccessException || 
-										   ex is NullReferenceException)
+				catch (Exception ex) //when (ex is TargetInvocationException || ex is FieldAccessException || 
+									//	   ex is NullReferenceException)
 				{
+					Debug.LogError(ex);
 					continue;
 				}
 
