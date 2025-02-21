@@ -38,7 +38,9 @@ namespace AssetScout.Editor
 
 			LoadProcessors();
 
-			if (!string.IsNullOrEmpty(_searchKey) && _foundReferences.Count == 0)
+			if (!string.IsNullOrEmpty(_searchKey) && 
+				_foundReferences.Count == 0 && 
+				AssetScoutSettings.Instance.AutoRefresh)
 			{
 				StartNewSearch();
 			}
@@ -165,6 +167,8 @@ namespace AssetScout.Editor
 				
 				if (AssetScoutSettings.Instance.AutoRefresh)
 					StartNewSearch();
+				else
+					ResetSearch();
 			}
 
 			if (!AssetScoutSettings.Instance.AutoRefresh)
