@@ -65,13 +65,18 @@ namespace AssetScout.Search
                 			var prefabAsset = PrefabUtility.GetCorrespondingObjectFromSource(go);
                 			if (prefabAsset != null)
                 			{
-                				string prefabAssetGuid =
-                					AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(prefabAsset));
-                				if (!string.IsNullOrEmpty(prefabAssetGuid))
-                				{
-                					AddReference(result, assetGuid, prefabAssetGuid, context.CurrentPath);
-                				}
-                			}
+								string prefabPath = AssetDatabase.GetAssetPath(prefabAsset);
+								var realPrefabAsset = AssetDatabase.LoadAssetAtPath<Object>(prefabPath);
+								if (realPrefabAsset == prefabAsset)
+								{
+									string prefabAssetGuid =
+										AssetDatabase.AssetPathToGUID(prefabPath);
+									if (!string.IsNullOrEmpty(prefabAssetGuid))
+									{
+										AddReference(result, assetGuid, prefabAssetGuid, context.CurrentPath);
+									}
+								}
+							}
                 		}
                 		else if (isPartOfInstance)
                 		{
@@ -80,13 +85,17 @@ namespace AssetScout.Search
                 			if (prefabAsset != null)
                 			{
                 				string prefabPath = AssetDatabase.GetAssetPath(prefabAsset);
-                				string prefabAssetGuid = AssetDatabase.AssetPathToGUID(prefabPath);
-    
-                				if (!string.IsNullOrEmpty(prefabAssetGuid))
-                				{
-                					AddReference(result, assetGuid, prefabAssetGuid, context.CurrentPath);
-                				}
-                			}
+								var realPrefabAsset = AssetDatabase.LoadAssetAtPath<Object>(prefabPath);
+								if (realPrefabAsset == prefabAsset)
+								{
+									string prefabAssetGuid = AssetDatabase.AssetPathToGUID(prefabPath);
+
+									if (!string.IsNullOrEmpty(prefabAssetGuid))
+									{
+										AddReference(result, assetGuid, prefabAssetGuid, context.CurrentPath);
+									}
+								}
+							}
     
                 			if (prefabType == PrefabAssetType.Variant)
                 			{

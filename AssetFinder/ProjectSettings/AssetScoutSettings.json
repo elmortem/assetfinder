@@ -1,5 +1,5 @@
 {
-    "_autoUpdateCache": false,
-    "_autoRefresh": false,
+    "_autoUpdateCache": true,
+    "_autoRefresh": true,
     "_processorDisabled": []
 }
