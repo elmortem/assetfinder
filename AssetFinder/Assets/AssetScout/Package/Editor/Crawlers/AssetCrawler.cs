@@ -2,15 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
+using UnityEngine;
 using Object = UnityEngine.Object;
 
 namespace AssetScout.Crawlers
 {
 	public class AssetCrawler
 	{
-		private readonly List<IAssetCrawler> _crawlers = new();
-		private bool _crawlersInitialized;
+		private static readonly List<IAssetCrawler> _crawlers = new();
+		private static bool _crawlersInitialized;
 		private readonly HashSet<(Object target, string path)> _processedObjects = new();
 
 		public void Crawl(object rootObject, string initialPath,
@@ -69,8 +69,21 @@ namespace AssetScout.Crawlers
 				}
 			}
 		}
+		
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+		public static void Initialize()
+		{
+			ClearCrawlers();
+			InitializeCrawlers();
+		}
 
-		private void InitializeCrawlers()
+		public static void ClearCrawlers()
+		{
+			_crawlers.Clear();
+			_crawlersInitialized = false;
+		}
+
+		private static void InitializeCrawlers()
 		{
 			if (_crawlersInitialized)
 				return;
