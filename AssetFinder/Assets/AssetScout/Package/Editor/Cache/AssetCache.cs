@@ -8,6 +8,7 @@ using UnityEngine;
 using System.Linq;
 using AssetScout.Search;
 using AssetScout.Utilities;
+using UnityEngine.Profiling;
 using Object = UnityEngine.Object;
 
 namespace AssetScout.Cache
@@ -22,7 +23,6 @@ namespace AssetScout.Cache
 
 		private List<IReferenceProcessor> _processors;
 		private readonly Dictionary<string, SerializedCacheEntry> _assetCache = new();
-		private readonly object _lockObject = new();
 		private readonly Queue<string> _assetsToProcess = new();
 		private bool _isInitialized;
 		private CancellationTokenSource _rebuildCts;
@@ -55,14 +55,11 @@ namespace AssetScout.Cache
 				Debug.LogError("Preprocessors not set");
 				return;
 			}
-			
+
 			CancelProcessing();
 
-			lock (_lockObject)
-			{
-				_rebuildCts?.Cancel();
-				_rebuildCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-			}
+			_rebuildCts?.Cancel();
+			_rebuildCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
 			var token = _rebuildCts.Token;
 			var startTime = Time.realtimeSinceStartup;
@@ -70,34 +67,31 @@ namespace AssetScout.Cache
 			try
 			{
 				ClearFileModifierTimeCache();
-				if (force) 
+				if (force)
 					_assetCache.Clear();
 
+				Profiler.BeginSample("FindAssets");
 				//var allAssets = AssetDatabase.FindAssets("", new[] { "Assets" });
-				var allAssets = AssetDatabase.FindAssets("t:GameObject t:ScriptableObject t:Material t:SceneAsset t:SpriteAtlas", new[] { "Assets" });
+				var allAssets = AssetDatabase.FindAssets(
+					"t:GameObject t:ScriptableObject t:Material t:SceneAsset t:SpriteAtlas", new[] { "Assets" });
 				//var allAssets = AssetDatabase.FindAssets("t:GameObject Test", new[] { "Assets" });
 				//var allAssets = AssetDatabase.FindAssets("t:Scene Sample", new[] { "Assets" });
 
-				allAssets = allAssets.Where(guid => AssetUtility.IsBaseAsset(AssetDatabase.GUIDToAssetPath(guid)))
-					.ToArray();
-				
+				//allAssets = allAssets.Where(guid => AssetUtility.IsBaseAsset(AssetDatabase.GUIDToAssetPath(guid)))
+				//	.ToArray();
+				Profiler.EndSample();
+
 				var assetsToProcess = new List<string>();
 
 				if (!force)
 				{
 					foreach (var guid in allAssets)
 					{
-						var path = AssetDatabase.GUIDToAssetPath(guid);
-						if (!AssetUtility.IsBaseAsset(path))
-							continue;
+						var assetPath = AssetDatabase.GUIDToAssetPath(guid);
+						var lastModified = GetFileModifierTime(assetPath);
 
-						var lastModified = GetFileModifierTime(path);
-
-						lock (_lockObject)
-						{
-							if (!_assetCache.ContainsKey(guid) || _assetCache[guid].LastModified != lastModified)
-								assetsToProcess.Add(guid);
-						}
+						if (!_assetCache.ContainsKey(guid) || _assetCache[guid].LastModified != lastModified)
+							assetsToProcess.Add(guid);
 					}
 				}
 				else
@@ -151,12 +145,16 @@ namespace AssetScout.Cache
 
 				var currentBatch = assets.Skip(i).Take(batchSize).ToArray();
 
+				Profiler.BeginSample("ProcessAssets.Batch");
 				foreach (var guid in currentBatch)
 				{
+					Profiler.BeginSample("ProcessAssets.ProcessAsset");
 					ProcessAsset(searcher, guid, token);
+					Profiler.EndSample();
 				}
 
 				onProgress?.Invoke(currentBatch.Length);
+				Profiler.EndSample();
 			}
 		}
 
@@ -195,8 +193,11 @@ namespace AssetScout.Cache
 				if (asset == null)
 					return;
 
+				Profiler.BeginSample("ProcessAsset.FindReferencePaths");
 				var referenceResults = searcher.FindReferencePaths(asset, cancellationToken);
+				Profiler.EndSample();
 
+				Profiler.BeginSample("ProcessAsset.ApplyDependencies");
 				if (!_assetCache.TryGetValue(assetGuid, out var currentAssetEntry))
 				{
 					currentAssetEntry = new SerializedCacheEntry
@@ -227,6 +228,8 @@ namespace AssetScout.Cache
 
 					entry.References.Add(new SerializedReference { TargetGuid = assetGuid, Paths = paths });
 				}
+				
+				Profiler.EndSample();
 			}
 			finally
 			{
@@ -236,7 +239,7 @@ namespace AssetScout.Cache
 
 		public async void EnqueueAssetsForProcessing(IEnumerable<string> assetGuids)
 		{
-			foreach (var guid in assetGuids) 
+			foreach (var guid in assetGuids)
 				_assetsToProcess.Enqueue(guid);
 
 			if (_processingCts == null)
@@ -323,15 +326,17 @@ namespace AssetScout.Cache
 		}
 
 		private readonly Dictionary<string, long> _fileModifierTimeCache = new();
+
 		private void ClearFileModifierTimeCache()
 		{
 			_fileModifierTimeCache.Clear();
 		}
+
 		private long GetFileModifierTime(string filePath)
 		{
-			if (_fileModifierTimeCache.TryGetValue(filePath, out var time)) 
+			if (_fileModifierTimeCache.TryGetValue(filePath, out var time))
 				return time;
-			
+
 			time = File.GetLastWriteTime(filePath).Ticks;
 			_fileModifierTimeCache[filePath] = time;
 			return time;
