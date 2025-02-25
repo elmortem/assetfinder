@@ -13,17 +13,17 @@ namespace AssetScout.Crawlers
 		private bool _crawlersInitialized;
 		private readonly HashSet<(Object target, string path)> _processedObjects = new();
 
-		public async Task Crawl(object rootObject, string initialPath,
-			Func<object, TraversalContext, Task<bool>> elementProcessor, CancellationToken cancellationToken)
+		public void Crawl(object rootObject, string initialPath,
+			Func<object, TraversalContext, bool> elementProcessor, CancellationToken cancellationToken)
 		{
 			_processedObjects.Clear();
 			var initialContext = new TraversalContext(rootObject, initialPath, 0);
 			//var initialContext = new TraversalContext(rootObject, string.Empty, 0);
-			await CrawlObject(initialContext, elementProcessor, cancellationToken);
+			CrawlObject(initialContext, elementProcessor, cancellationToken);
 		}
 
-		private async Task CrawlObject(TraversalContext context,
-			Func<object, TraversalContext, Task<bool>> elementProcessor, CancellationToken cancellationToken)
+		private void CrawlObject(TraversalContext context,
+			Func<object, TraversalContext, bool> elementProcessor, CancellationToken cancellationToken)
 		{
 			var currentObject = context.CurrentObject;
 			if (currentObject == null)
@@ -46,7 +46,7 @@ namespace AssetScout.Crawlers
 				}
 			}
 
-			if (!await elementProcessor(currentObject, context))
+			if (!elementProcessor(currentObject, context))
 			{
 				return;
 			}
@@ -65,7 +65,7 @@ namespace AssetScout.Crawlers
 					if (childContext == null) 
 						continue;
 					
-					await CrawlObject(childContext, elementProcessor, cancellationToken);
+					CrawlObject(childContext, elementProcessor, cancellationToken);
 				}
 			}
 		}
