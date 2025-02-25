@@ -47,7 +47,7 @@ namespace AssetScout.Cache
 			_processors = processors;
 		}
 
-		public async Task RebuildCache(bool force = false, Action<int, int> onProgress = null,
+		public void RebuildCache(bool force = false, Action<int, int> onProgress = null,
 			CancellationToken cancellationToken = default)
 		{
 			if (_processors == null || _processors.Count <= 0)
@@ -116,7 +116,7 @@ namespace AssetScout.Cache
 						onProgress?.Invoke(processedCount, totalCount);
 					}
 
-					await ProcessAssetsWithProgress(assetsToProcess, OnProgress, token, true);
+					ProcessAssets(assetsToProcess, OnProgress, token);
 					onProgress?.Invoke(totalCount, totalCount);
 				}
 
@@ -126,58 +126,37 @@ namespace AssetScout.Cache
 			}
 			finally
 			{
-				lock (_lockObject)
+				if (_rebuildCts != null)
 				{
-					if (_rebuildCts != null)
-					{
-						_rebuildCts.Dispose();
-						_rebuildCts = null;
-					}
+					_rebuildCts.Dispose();
+					_rebuildCts = null;
 				}
 
 				Debug.Log($"Rebuild cache finished in {_lastRebuildDuration} seconds.");
 			}
 		}
 
-		private async Task ProcessAssetsWithProgress(List<string> assets, Action<int> onProgress,
-			CancellationToken token, bool aggressive)
+		private void ProcessAssets(List<string> assets, Action<int> onProgress,
+			CancellationToken token)
 		{
 			var searcher = new ObjectReferenceSearcher(_processors);
 
-			if (aggressive)
+			var batchSize = Mathf.Max(10, Mathf.Min(100, Mathf.FloorToInt(Mathf.Sqrt(assets.Count))));
+			Debug.Log($"Batch size: {batchSize}");
+
+			for (var i = 0; i < assets.Count; i += batchSize)
 			{
-				var tasks = new List<Task>();
-				var batchSize = Mathf.Max(10, Mathf.Min(100, Mathf.FloorToInt(Mathf.Sqrt(assets.Count))));
-				Debug.Log($"Batch size: {batchSize}");
+				if (token.IsCancellationRequested)
+					return;
 
-				for (var i = 0; i < assets.Count; i += batchSize)
+				var currentBatch = assets.Skip(i).Take(batchSize).ToArray();
+
+				foreach (var guid in currentBatch)
 				{
-					if (token.IsCancellationRequested)
-						return;
-
-					var currentBatch = assets.Skip(i).Take(batchSize).ToArray();
-
-					tasks.Clear();
-					foreach (var guid in currentBatch)
-					{
-						tasks.Add(ProcessAsset(searcher, guid, token));
-					}
-
-					await Task.WhenAll(tasks);
-					onProgress?.Invoke(currentBatch.Length);
+					ProcessAsset(searcher, guid, token);
 				}
-			}
-			else
-			{
-				foreach (var guid in assets)
-				{
-					if (token.IsCancellationRequested)
-						return;
 
-					await ProcessAsset(searcher, guid, token);
-					await Task.Delay(1, token);
-					onProgress?.Invoke(1);
-				}
+				onProgress?.Invoke(currentBatch.Length);
 			}
 		}
 
@@ -204,10 +183,10 @@ namespace AssetScout.Cache
 			return result;
 		}
 
-		private async Task ProcessAsset(ObjectReferenceSearcher searcher, string assetGuid,
+		private void ProcessAsset(ObjectReferenceSearcher searcher, string assetGuid,
 			CancellationToken cancellationToken)
 		{
-			Interlocked.Increment(ref _processingCount);
+			_processingCount++;
 
 			try
 			{
@@ -216,7 +195,7 @@ namespace AssetScout.Cache
 				if (asset == null)
 					return;
 
-				var referenceResults = await searcher.FindReferencePaths(asset, cancellationToken);
+				var referenceResults = searcher.FindReferencePaths(asset, cancellationToken);
 
 				if (!_assetCache.TryGetValue(assetGuid, out var currentAssetEntry))
 				{
@@ -236,38 +215,34 @@ namespace AssetScout.Cache
 					var targetGuid = kvp.Key;
 					var paths = kvp.Value;
 
-					lock (_lockObject)
+					if (!_assetCache.TryGetValue(targetGuid, out var entry))
 					{
-						if (!_assetCache.TryGetValue(targetGuid, out var entry))
+						entry = new SerializedCacheEntry
 						{
-							entry = new SerializedCacheEntry
-							{
-								Guid = targetGuid,
-								References = new List<SerializedReference>()
-							};
-							_assetCache[targetGuid] = entry;
-						}
-
-						entry.References.Add(new SerializedReference { TargetGuid = assetGuid, Paths = paths });
+							Guid = targetGuid,
+							References = new List<SerializedReference>()
+						};
+						_assetCache[targetGuid] = entry;
 					}
+
+					entry.References.Add(new SerializedReference { TargetGuid = assetGuid, Paths = paths });
 				}
 			}
 			finally
 			{
-				Interlocked.Decrement(ref _processingCount);
+				_processingCount--;
 			}
 		}
 
 		public async void EnqueueAssetsForProcessing(IEnumerable<string> assetGuids)
 		{
-			ClearFileModifierTimeCache();
-			var searcher = new ObjectReferenceSearcher(_processors);
-
 			foreach (var guid in assetGuids) 
 				_assetsToProcess.Enqueue(guid);
 
 			if (_processingCts == null)
 			{
+				ClearFileModifierTimeCache();
+				var searcher = new ObjectReferenceSearcher(_processors);
 				_processingCts = new CancellationTokenSource();
 				await ProcessAssetsAsync(searcher, _processingCts.Token);
 			}
@@ -281,50 +256,40 @@ namespace AssetScout.Cache
 				{
 					string guid;
 
-					//TODO no need threads
-					lock (_lockObject)
+					if (_assetsToProcess.Count > 0)
 					{
-						if (_assetsToProcess.Count > 0)
-						{
-							guid = _assetsToProcess.Dequeue();
-						}
-						else
-						{
-							_processingCts?.Dispose();
-							_processingCts = null;
-							return;
-						}
+						guid = _assetsToProcess.Dequeue();
+					}
+					else
+					{
+						_processingCts?.Dispose();
+						_processingCts = null;
+						return;
 					}
 
 					if (guid != null)
 					{
-						await ProcessAsset(searcher, guid, token);
+						ProcessAsset(searcher, guid, token);
 						await Task.Delay(1, token);
 					}
 				}
 			}
 			finally
 			{
-				lock (_lockObject)
+				if (_processingCts?.Token == token)
 				{
-					if (_processingCts?.Token == token)
-					{
-						_processingCts?.Dispose();
-						_processingCts = null;
-					}
+					_processingCts?.Dispose();
+					_processingCts = null;
 				}
 			}
 		}
 
 		public void CancelProcessing()
 		{
-			lock (_lockObject)
-			{
-				_processingCts?.Cancel();
-				_processingCts?.Dispose();
-				_processingCts = null;
-				_assetsToProcess.Clear();
-			}
+			_processingCts?.Cancel();
+			_processingCts?.Dispose();
+			_processingCts = null;
+			_assetsToProcess.Clear();
 		}
 
 		private void SaveCache()

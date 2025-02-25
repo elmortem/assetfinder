@@ -32,8 +32,8 @@ namespace AssetScout.Search
 			return _searchKey;
 		}
 
-		public async Task ProcessElement(object element, TraversalContext context, string assetGuid,
-			Dictionary<string, List<string>> result, CancellationToken cancellationToken)
+		public void ProcessElement(object element, TraversalContext context, string assetGuid,
+			Dictionary<string, List<string>> result)
 		{
 			if (element == null || !(element is Object))
 				return;
