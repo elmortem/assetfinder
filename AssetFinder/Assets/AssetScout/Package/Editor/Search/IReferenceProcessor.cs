@@ -8,7 +8,7 @@ namespace AssetScout.Search
 {
 	public interface IReferenceProcessor
 	{
-		void ProcessElement(object element, TraversalContext context, string assetGuid, Dictionary<string, List<string>> result);
+		void ProcessElement(object element, TraversalContext context, string assetGuid, Dictionary<string, HashSet<string>> results);
 
 		bool ShouldCrawlDeeper(object currentObject, TraversalContext context);
 		string DrawGUI(string searchKey, bool active);

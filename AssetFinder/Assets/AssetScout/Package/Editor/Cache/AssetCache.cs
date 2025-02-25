@@ -151,13 +151,15 @@ namespace AssetScout.Cache
 					ProcessAsset(searcher, guid, token);
 					//Profiler.EndSample();
 				}
+				
+				Resources.UnloadUnusedAssets();
 
 				onProgress?.Invoke(currentBatch.Length);
 				//Profiler.EndSample();
 			}
 		}
 
-		public Dictionary<string, List<string>> FindReferences(string key)
+		public Dictionary<string, HashSet<string>> FindReferences(string key)
 		{
 			if (!_isInitialized)
 			{
@@ -165,19 +167,19 @@ namespace AssetScout.Cache
 				_isInitialized = true;
 			}
 
-			var result = new Dictionary<string, List<string>>();
+			var results = new Dictionary<string, HashSet<string>>();
 
 			if (!_assetCache.TryGetValue(key, out var entry))
 			{
-				return result;
+				return results;
 			}
 
 			foreach (var reference in entry.References)
 			{
-				result[reference.TargetGuid] = reference.Paths;
+				results[reference.TargetGuid] = reference.Paths;
 			}
 
-			return result;
+			return results;
 		}
 
 		private void ProcessAsset(ObjectReferenceSearcher searcher, string assetGuid,
@@ -193,7 +195,8 @@ namespace AssetScout.Cache
 					return;
 
 				//Profiler.BeginSample("ProcessAsset.FindReferencePaths");
-				var referenceResults = searcher.FindReferencePaths(asset, cancellationToken);
+				var referenceResults = new Dictionary<string, HashSet<string>>();
+				searcher.FindReferencePaths(asset, referenceResults, cancellationToken);
 				//Profiler.EndSample();
 
 				//Profiler.BeginSample("ProcessAsset.ApplyDependencies");
@@ -203,7 +206,7 @@ namespace AssetScout.Cache
 					{
 						Guid = assetGuid,
 						LastModified = GetFileModifierTime(assetPath),
-						References = new List<SerializedReference>()
+						References = new HashSet<SerializedReference>()
 					};
 					_assetCache[assetGuid] = currentAssetEntry;
 				}
@@ -220,7 +223,7 @@ namespace AssetScout.Cache
 						entry = new SerializedCacheEntry
 						{
 							Guid = targetGuid,
-							References = new List<SerializedReference>()
+							References = new HashSet<SerializedReference>()
 						};
 						_assetCache[targetGuid] = entry;
 					}
@@ -353,14 +356,14 @@ namespace AssetScout.Cache
 		{
 			public string Guid;
 			public long LastModified;
-			public List<SerializedReference> References = new();
+			public HashSet<SerializedReference> References = new();
 		}
 
 		[Serializable]
 		private class SerializedReference
 		{
 			public string TargetGuid;
-			public List<string> Paths = new();
+			public HashSet<string> Paths = new();
 		}
 	}
 }

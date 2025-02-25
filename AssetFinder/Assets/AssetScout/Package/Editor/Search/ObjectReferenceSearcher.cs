@@ -16,14 +16,13 @@ namespace AssetScout.Search
 			_processors = processors ?? new List<IReferenceProcessor>();
 		}
 
-		public Dictionary<string, List<string>> FindReferencePaths(
+		public void FindReferencePaths(
 			Object sourceAsset,
+			Dictionary<string, HashSet<string>> results,
 			CancellationToken cancellationToken)
 		{
-			var result = new Dictionary<string, List<string>>();
-			
 			if (sourceAsset == null)
-				return result;
+				return;
 
 			var assetGuid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(sourceAsset));
 			
@@ -37,7 +36,7 @@ namespace AssetScout.Search
 						shouldCrawlDeeper = false;
 					}
 
-					processor.ProcessElement(currentObject, context, assetGuid, result);
+					processor.ProcessElement(currentObject, context, assetGuid, results);
 				}
 
 				return shouldCrawlDeeper;
@@ -45,7 +44,6 @@ namespace AssetScout.Search
 
 			var assetCrawler = new AssetCrawler();
 			assetCrawler.Crawl(sourceAsset, sourceAsset.name, ProccessElement, cancellationToken);
-			return result;
 		}
 	}
 }
