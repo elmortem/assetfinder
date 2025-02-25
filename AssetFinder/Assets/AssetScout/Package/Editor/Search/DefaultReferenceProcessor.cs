@@ -79,7 +79,6 @@ namespace AssetScout.Search
                 		else if (isPartOfInstance)
                 		{
                 			var prefabAsset = PrefabUtility.GetCorrespondingObjectFromOriginalSource(go);
-    
                 			if (prefabAsset != null)
                 			{
                 				string prefabPath = AssetDatabase.GetAssetPath(prefabAsset);
@@ -97,17 +96,21 @@ namespace AssetScout.Search
     
                 			if (prefabType == PrefabAssetType.Variant)
                 			{
-                				var variantPrefab = PrefabUtility.GetCorrespondingObjectFromSource(go);
-                				if (variantPrefab != null)
+                				var variantAsset = PrefabUtility.GetCorrespondingObjectFromSource(go);
+                				if (variantAsset != null)
                 				{
-                					string variantPath = AssetDatabase.GetAssetPath(variantPrefab);
-                					string variantGuid = AssetDatabase.AssetPathToGUID(variantPath);
-    
-                					if (!string.IsNullOrEmpty(variantGuid))
-                					{
-                						AddReference(result, assetGuid, variantGuid, context.CurrentPath);
-                					}
-                				}
+                					string variantPath = AssetDatabase.GetAssetPath(variantAsset);
+									var realVariantAsset = AssetDatabase.LoadAssetAtPath<Object>(variantPath);
+									if (realVariantAsset == variantAsset)
+									{
+										string variantGuid = AssetDatabase.AssetPathToGUID(variantPath);
+
+										if (!string.IsNullOrEmpty(variantGuid))
+										{
+											AddReference(result, assetGuid, variantGuid, context.CurrentPath);
+										}
+									}
+								}
                 			}
                 		}
                 	}
