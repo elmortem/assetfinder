@@ -65,6 +65,16 @@ namespace AssetScout.Crawlers
 					if (childContext == null) 
 						continue;
 					
+					if (childContext.CurrentObject is Object unityChildObject)
+					{
+						(Object target, string path) processedKey = (unityChildObject, context.CurrentPath);
+						if (!_processedObjects.Add(processedKey))
+						{
+							Debug.Log($"Skipping already processed object: {unityChildObject.name}");
+							continue;
+						}
+					}
+					
 					CrawlObject(childContext, elementProcessor, cancellationToken);
 				}
 			}
