@@ -90,7 +90,7 @@ namespace AssetScout.Crawlers
 
 			var crawlerTypes = AppDomain.CurrentDomain.GetAssemblies()
 				.SelectMany(assembly => assembly.GetTypes())
-				.Where(type => typeof(IAssetCrawler).IsAssignableFrom(type) && !type.IsInterface && !type.IsAbstract);
+				.Where(type => !type.IsInterface && !type.IsAbstract && typeof(IAssetCrawler).IsAssignableFrom(type));
 
 			foreach (var type in crawlerTypes)
 			{
