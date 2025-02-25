@@ -7,8 +7,7 @@ using UnityEditor;
 using UnityEngine;
 using System.Linq;
 using AssetScout.Search;
-using AssetScout.Utilities;
-using UnityEngine.Profiling;
+//using UnityEngine.Profiling;
 using Object = UnityEngine.Object;
 
 namespace AssetScout.Cache
@@ -70,7 +69,7 @@ namespace AssetScout.Cache
 				if (force)
 					_assetCache.Clear();
 
-				Profiler.BeginSample("FindAssets");
+				//Profiler.BeginSample("FindAssets");
 				//var allAssets = AssetDatabase.FindAssets("", new[] { "Assets" });
 				var allAssets = AssetDatabase.FindAssets(
 					"t:GameObject t:ScriptableObject t:Material t:SceneAsset t:SpriteAtlas", new[] { "Assets" });
@@ -79,7 +78,7 @@ namespace AssetScout.Cache
 
 				//allAssets = allAssets.Where(guid => AssetUtility.IsBaseAsset(AssetDatabase.GUIDToAssetPath(guid)))
 				//	.ToArray();
-				Profiler.EndSample();
+				//Profiler.EndSample();
 
 				var assetsToProcess = new List<string>();
 
@@ -145,16 +144,16 @@ namespace AssetScout.Cache
 
 				var currentBatch = assets.Skip(i).Take(batchSize).ToArray();
 
-				Profiler.BeginSample("ProcessAssets.Batch");
+				//Profiler.BeginSample("ProcessAssets.Batch");
 				foreach (var guid in currentBatch)
 				{
-					Profiler.BeginSample("ProcessAssets.ProcessAsset");
+					//Profiler.BeginSample("ProcessAssets.ProcessAsset");
 					ProcessAsset(searcher, guid, token);
-					Profiler.EndSample();
+					//Profiler.EndSample();
 				}
 
 				onProgress?.Invoke(currentBatch.Length);
-				Profiler.EndSample();
+				//Profiler.EndSample();
 			}
 		}
 
@@ -193,11 +192,11 @@ namespace AssetScout.Cache
 				if (asset == null)
 					return;
 
-				Profiler.BeginSample("ProcessAsset.FindReferencePaths");
+				//Profiler.BeginSample("ProcessAsset.FindReferencePaths");
 				var referenceResults = searcher.FindReferencePaths(asset, cancellationToken);
-				Profiler.EndSample();
+				//Profiler.EndSample();
 
-				Profiler.BeginSample("ProcessAsset.ApplyDependencies");
+				//Profiler.BeginSample("ProcessAsset.ApplyDependencies");
 				if (!_assetCache.TryGetValue(assetGuid, out var currentAssetEntry))
 				{
 					currentAssetEntry = new SerializedCacheEntry
@@ -229,7 +228,7 @@ namespace AssetScout.Cache
 					entry.References.Add(new SerializedReference { TargetGuid = assetGuid, Paths = paths });
 				}
 				
-				Profiler.EndSample();
+				//Profiler.EndSample();
 			}
 			finally
 			{
