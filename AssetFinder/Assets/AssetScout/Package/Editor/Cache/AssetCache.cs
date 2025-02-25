@@ -152,7 +152,7 @@ namespace AssetScout.Cache
 					//Profiler.EndSample();
 				}
 				
-				Resources.UnloadUnusedAssets();
+				//Resources.UnloadUnusedAssets(); // so slow
 
 				onProgress?.Invoke(currentBatch.Length);
 				//Profiler.EndSample();
