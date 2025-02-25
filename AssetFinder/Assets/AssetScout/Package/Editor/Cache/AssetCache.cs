@@ -114,7 +114,7 @@ namespace AssetScout.Cache
 						onProgress?.Invoke(processedCount, totalCount);
 					}
 
-					await ProcessAssetsWithProgress(assetsToProcess, OnProgress, token);
+					await ProcessAssetsWithProgress(assetsToProcess, OnProgress, token, true);
 					onProgress?.Invoke(totalCount, totalCount);
 				}
 
@@ -138,7 +138,7 @@ namespace AssetScout.Cache
 		}
 
 		private async Task ProcessAssetsWithProgress(List<string> assets, Action<int> onProgress,
-			CancellationToken token, bool aggressive = false)
+			CancellationToken token, bool aggressive)
 		{
 			var searcher = new ObjectReferenceSearcher(_processors);
 
