@@ -12,11 +12,16 @@ namespace AssetScout.Crawlers
 		private static readonly List<IAssetCrawler> _crawlers = new();
 		private static bool _crawlersInitialized;
 		private readonly HashSet<(Object target, string path)> _processedObjects = new();
+		private readonly HashSet<object> _processed = new();
 
 		public void Crawl(object rootObject, string initialPath,
 			Func<object, TraversalContext, bool> elementProcessor, CancellationToken cancellationToken)
 		{
+			if (rootObject == null || (rootObject is Object unityObject && unityObject == null))
+				return;
+			
 			_processedObjects.Clear();
+			_processed.Clear();
 			var initialContext = new TraversalContext(rootObject, initialPath, 0);
 			//var initialContext = new TraversalContext(rootObject, string.Empty, 0);
 			CrawlObject(initialContext, elementProcessor, cancellationToken);
@@ -31,19 +36,22 @@ namespace AssetScout.Crawlers
 				return;
 			}
 
-			if (cancellationToken.IsCancellationRequested)
-			{
-				return;
-			}
-
 			if (currentObject is Object unityObject)
 			{
-				(Object target, string path) processedKey = (unityObject, context.CurrentPath);
+				if (unityObject == null)
+					return;
+				
+				/*(Object target, string path) processedKey = (unityObject, context.CurrentPath);
 
 				if (!_processedObjects.Add(processedKey))
 				{
 					return;
-				}
+				}*/
+			}
+			
+			if (!_processed.Add(currentObject))
+			{
+				return;
 			}
 
 			if (!elementProcessor(currentObject, context))
@@ -52,6 +60,11 @@ namespace AssetScout.Crawlers
 			}
 
 			InitializeCrawlers();
+			
+			if (cancellationToken.IsCancellationRequested)
+			{
+				return;
+			}
 
 			var selectedCrawler = _crawlers.FirstOrDefault(p => p.CanCrawl(currentObject));
 			if (selectedCrawler == null)
@@ -62,20 +75,9 @@ namespace AssetScout.Crawlers
 			{
 				foreach (var childContext in childrenContexts)
 				{
-					if (childContext == null) 
-						continue;
-					
-					if (childContext.CurrentObject is Object unityChildObject)
+					if (cancellationToken.IsCancellationRequested)
 					{
-						if (unityChildObject == null)
-							continue;
-						
-						(Object target, string path) processedKey = (unityChildObject, context.CurrentPath);
-						if (!_processedObjects.Add(processedKey))
-						{
-							Debug.Log($"Skipping already processed object: {unityChildObject.name}");
-							continue;
-						}
+						return;
 					}
 					
 					CrawlObject(childContext, elementProcessor, cancellationToken);
