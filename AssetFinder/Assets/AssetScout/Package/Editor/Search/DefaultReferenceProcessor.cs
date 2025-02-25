@@ -31,7 +31,7 @@ namespace AssetScout.Search
 		}
 
 		public void ProcessElement(object element, TraversalContext context, string assetGuid,
-			Dictionary<string, List<string>> result)
+			Dictionary<string, HashSet<string>> results)
 		{
 			if (element == null || !(element is Object))
 				return;
@@ -47,7 +47,7 @@ namespace AssetScout.Search
 				var referencedGuid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(unityObject));
 				if (!string.IsNullOrEmpty(referencedGuid))
 				{
-					AddReference(result, assetGuid, referencedGuid, context.CurrentPath);
+					AddReference(results, assetGuid, referencedGuid, context.CurrentPath);
 				}
 				
 				if (unityObject is GameObject go)
@@ -71,7 +71,7 @@ namespace AssetScout.Search
 										AssetDatabase.AssetPathToGUID(prefabPath);
 									if (!string.IsNullOrEmpty(prefabAssetGuid))
 									{
-										AddReference(result, assetGuid, prefabAssetGuid, context.CurrentPath);
+										AddReference(results, assetGuid, prefabAssetGuid, context.CurrentPath);
 									}
 								}
 							}
@@ -89,7 +89,7 @@ namespace AssetScout.Search
 
 									if (!string.IsNullOrEmpty(prefabAssetGuid))
 									{
-										AddReference(result, assetGuid, prefabAssetGuid, context.CurrentPath);
+										AddReference(results, assetGuid, prefabAssetGuid, context.CurrentPath);
 									}
 								}
 							}
@@ -107,7 +107,7 @@ namespace AssetScout.Search
 
 										if (!string.IsNullOrEmpty(variantGuid))
 										{
-											AddReference(result, assetGuid, variantGuid, context.CurrentPath);
+											AddReference(results, assetGuid, variantGuid, context.CurrentPath);
 										}
 									}
 								}
@@ -134,17 +134,17 @@ namespace AssetScout.Search
 			return true;
 		}
 
-		private void AddReference(Dictionary<string, List<string>> result, string assetGuid, string referencedGuid, string path)
+		private void AddReference(Dictionary<string, HashSet<string>> results, string assetGuid, string referencedGuid, string path)
 		{
 			if (assetGuid == referencedGuid)
 				return;
 
-			if (!result.ContainsKey(referencedGuid))
+			if (!results.ContainsKey(referencedGuid))
 			{
-				result[referencedGuid] = new List<string>();
+				results[referencedGuid] = new HashSet<string>();
 			}
 
-			result[referencedGuid].Add(path);
+			results[referencedGuid].Add(path);
 		}
 	}
 }

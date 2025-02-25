@@ -15,7 +15,8 @@ A powerful Unity Editor tool for finding all references to any asset in your pro
   - Materials (including shader properties)
   - And other Unity assets
 - **Detailed Results**: Shows exact paths to referenced assets
-- **Fast & Efficient**: Asynchronous search with progress tracking
+- **Fast & Efficient**: Imidiatly search with rebuilded cache
+- **Fast cache**: Rebuild cache with progress tracking (150 seconds for 35000 assets)
 - **Easy to Use**: Simple drag & drop interface
 
 <img src="Images/screenshot0.png" width="400">
