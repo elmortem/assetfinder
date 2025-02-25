@@ -9,9 +9,7 @@ namespace AssetScout.Crawlers
 {
 	public class AssetCrawler
 	{
-		private static readonly List<IAssetCrawler> _crawlers = new();
-		private static bool _crawlersInitialized;
-		private readonly HashSet<(Object target, string path)> _processedObjects = new();
+		private IReadOnlyList<IAssetCrawler> _crawlers;
 		private readonly HashSet<object> _processed = new();
 
 		public void Crawl(object rootObject, string initialPath,
@@ -20,8 +18,9 @@ namespace AssetScout.Crawlers
 			if (rootObject == null || (rootObject is Object unityObject && unityObject == null))
 				return;
 			
-			_processedObjects.Clear();
 			_processed.Clear();
+			_crawlers = CrawlerCache.InitializeCrawlers();
+			
 			var initialContext = new TraversalContext(rootObject, initialPath, 0);
 			//var initialContext = new TraversalContext(rootObject, string.Empty, 0);
 			CrawlObject(initialContext, elementProcessor, cancellationToken);
@@ -36,17 +35,9 @@ namespace AssetScout.Crawlers
 				return;
 			}
 
-			if (currentObject is Object unityObject)
+			if (currentObject is Object unityObject && unityObject == null)
 			{
-				if (unityObject == null)
-					return;
-				
-				/*(Object target, string path) processedKey = (unityObject, context.CurrentPath);
-
-				if (!_processedObjects.Add(processedKey))
-				{
-					return;
-				}*/
+				return;
 			}
 			
 			if (!_processed.Add(currentObject))
@@ -55,13 +46,6 @@ namespace AssetScout.Crawlers
 			}
 
 			if (!elementProcessor(currentObject, context))
-			{
-				return;
-			}
-
-			InitializeCrawlers();
-			
-			if (cancellationToken.IsCancellationRequested)
 			{
 				return;
 			}
@@ -83,37 +67,6 @@ namespace AssetScout.Crawlers
 					CrawlObject(childContext, elementProcessor, cancellationToken);
 				}
 			}
-		}
-		
-		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-		public static void Initialize()
-		{
-			ClearCrawlers();
-			InitializeCrawlers();
-		}
-
-		public static void ClearCrawlers()
-		{
-			_crawlers.Clear();
-			_crawlersInitialized = false;
-		}
-
-		private static void InitializeCrawlers()
-		{
-			if (_crawlersInitialized)
-				return;
-
-			var crawlerTypes = AppDomain.CurrentDomain.GetAssemblies()
-				.SelectMany(assembly => assembly.GetTypes())
-				.Where(type => !type.IsInterface && !type.IsAbstract && typeof(IAssetCrawler).IsAssignableFrom(type));
-
-			foreach (var type in crawlerTypes)
-			{
-				var crawler = (IAssetCrawler)Activator.CreateInstance(type);
-				_crawlers.Add(crawler);
-			}
-
-			_crawlersInitialized = true;
 		}
 	}
 }
