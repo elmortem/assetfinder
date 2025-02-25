@@ -67,6 +67,9 @@ namespace AssetScout.Crawlers
 					
 					if (childContext.CurrentObject is Object unityChildObject)
 					{
+						if (unityChildObject == null)
+							continue;
+						
 						(Object target, string path) processedKey = (unityChildObject, context.CurrentPath);
 						if (!_processedObjects.Add(processedKey))
 						{
