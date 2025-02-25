@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using AssetScout.Crawlers;
 using UnityEditor;
 using UnityEngine;
@@ -125,7 +123,7 @@ namespace AssetScout.Search
 		{
 			if (currentObject is Object unityObject && 
 				(context.FieldInfo != null || context.PropertyInfo != null) &&
-				!AssetDatabase.Contains(unityObject))
+				AssetDatabase.Contains(unityObject))
 			{
 				return false;
 			}
