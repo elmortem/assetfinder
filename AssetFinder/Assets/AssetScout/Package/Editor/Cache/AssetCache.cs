@@ -145,7 +145,8 @@ namespace AssetScout.Cache
 			if (aggressive)
 			{
 				var tasks = new List<Task>();
-				var batchSize = Mathf.Max(10, Mathf.Min(100, Mathf.FloorToInt(500 / Mathf.Sqrt(assets.Count))));
+				var batchSize = Mathf.Max(10, Mathf.Min(100, Mathf.FloorToInt(Mathf.Sqrt(assets.Count))));
+				Debug.Log($"Batch size: {batchSize}");
 
 				for (var i = 0; i < assets.Count; i += batchSize)
 				{
@@ -155,7 +156,10 @@ namespace AssetScout.Cache
 					var currentBatch = assets.Skip(i).Take(batchSize).ToArray();
 
 					tasks.Clear();
-					foreach (var guid in currentBatch) tasks.Add(ProcessAsset(searcher, guid, token));
+					foreach (var guid in currentBatch)
+					{
+						tasks.Add(ProcessAsset(searcher, guid, token));
+					}
 
 					await Task.WhenAll(tasks);
 					onProgress?.Invoke(currentBatch.Length);
