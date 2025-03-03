@@ -176,7 +176,7 @@ namespace AssetScout.Cache
 
 			foreach (var reference in entry.References)
 			{
-				results[reference.TargetGuid] = reference.Paths;
+				results[reference.TargetGuid] = new HashSet<string>(reference.Paths);
 			}
 
 			return results;
@@ -206,7 +206,7 @@ namespace AssetScout.Cache
 					{
 						Guid = assetGuid,
 						LastModified = GetFileModifierTime(assetPath),
-						References = new HashSet<SerializedReference>()
+						References = new List<SerializedReference>()
 					};
 					_assetCache[assetGuid] = currentAssetEntry;
 				}
@@ -223,12 +223,12 @@ namespace AssetScout.Cache
 						entry = new SerializedCacheEntry
 						{
 							Guid = targetGuid,
-							References = new HashSet<SerializedReference>()
+							References = new List<SerializedReference>()
 						};
 						_assetCache[targetGuid] = entry;
 					}
 
-					entry.References.Add(new SerializedReference { TargetGuid = assetGuid, Paths = paths });
+					entry.References.Add(new SerializedReference { TargetGuid = assetGuid, Paths = new List<string>(paths) });
 				}
 				
 				//Profiler.EndSample();
@@ -300,7 +300,11 @@ namespace AssetScout.Cache
 		private void SaveCache()
 		{
 			var container = new CacheContainer
-				{ Entries = _assetCache.Values.ToList(), LastRebuildTime = _lastRebuildTime.ToBinary() };
+			{
+				Entries = _assetCache.Values.ToList(), 
+				LastRebuildTime = _lastRebuildTime.ToBinary()
+			};
+			
 			var json = JsonUtility.ToJson(container, true);
 			File.WriteAllText(CacheFilePath, json);
 			CacheSaveEvent?.Invoke();
@@ -308,7 +312,8 @@ namespace AssetScout.Cache
 
 		private void LoadCache()
 		{
-			if (!File.Exists(CacheFilePath)) return;
+			if (!File.Exists(CacheFilePath)) 
+				return;
 
 			try
 			{
@@ -316,7 +321,8 @@ namespace AssetScout.Cache
 				var container = JsonUtility.FromJson<CacheContainer>(json);
 
 				_assetCache.Clear();
-				foreach (var entry in container.Entries) _assetCache[entry.Guid] = entry;
+				foreach (var entry in container.Entries) 
+					_assetCache[entry.Guid] = entry;
 
 				_lastRebuildTime = DateTime.FromBinary(container.LastRebuildTime);
 			}
@@ -356,14 +362,14 @@ namespace AssetScout.Cache
 		{
 			public string Guid;
 			public long LastModified;
-			public HashSet<SerializedReference> References = new();
+			public List<SerializedReference> References = new();
 		}
 
 		[Serializable]
 		private class SerializedReference
 		{
 			public string TargetGuid;
-			public HashSet<string> Paths = new();
+			public List<string> Paths = new();
 		}
 	}
 }
