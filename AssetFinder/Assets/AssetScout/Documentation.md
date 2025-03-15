@@ -16,19 +16,27 @@
 Asset Scout is an editor extension for Unity that helps developers locate all references to any asset in their project. The tool is designed to improve project maintenance by making it easy to track down asset usage across scenes, prefabs, and other Unity assets.
 
 ## 2. Installation
-The Asset Scout package can be installed in two ways:
+The Asset Scout package can be installed in three ways:
 
-A. Using Unity Package Manager:
-1. Launch Unity and open your project
-2. Navigate to Window > Package Manager
-3. Click the "+" button in the top-left corner
-4. Select "Add package from git URL..."
-5. Enter: https://github.com/elmortem/assetfinder.git?path=AssetFinder/Assets/AssetScout/Package
-6. Click "Add"
+### A. Using Unity Asset Store (Recommended):
+1. Open the Asset Store window in Unity (Window > Asset Store)
+2. Search for "Asset Scout"
+3. Purchase and download the package
+4. Import the package into your project using the Package Manager
+5. Follow the on-screen instructions to complete the installation
 
-B. Manual Installation:
-1. Download the package files
-2. Copy the AssetScout folder from `AssetFinder/Assets/AssetScout/Package` to your Unity project's `Packages` directory
+### B. Using Unity Package Manager via Git URL:
+1. Open the Package Manager window in Unity (Window > Package Manager)
+2. Click the "+" button in the top-left corner
+3. Select "Add package from git URL..."
+4. Enter: `https://github.com/elmortem/assetfinder.git?path=AssetFinder/Assets/AssetScout/Package`
+5. Click "Add"
+
+### C. Manual Installation:
+1. Download this repository
+2. Copy the `AssetScout` folder from `AssetFinder/Assets/AssetScout/Package` to your Unity project's `Packages` folder
+
+**Important**: Please remove old version of Asset Scout before updating!
 
 ## 3. Basic Usage
 To find references to an asset:
@@ -37,6 +45,9 @@ To find references to an asset:
    - Drag and drop any asset from the Project window
    - Or use the object picker field at the top of the Asset Scout window
 3. View Results: The tool will automatically search and display all references if Auto Refresh is enabled, otherwise click "Refresh" button
+4. Review the list of found references:
+   - Each entry shows the asset containing references
+   - Expand entries to see exact paths where the reference is used
 
 ## 4. How It Works
 Asset Scout solves a fundamental problem that Unity's native API doesn't address - reverse dependencies:
@@ -93,19 +104,26 @@ Search results show:
 - Hierarchical view of nested references
 
 ## 8. Extensibility
-The processor system is a key feature of Asset Scout that allows you to extend its functionality:
+Asset Scout features a powerful processor system that allows you to extend its functionality with custom plugins:
 
 A. Custom Processors:
 - Create your own reference processors by implementing the `IReferenceProcessor` interface
 - Add support for project-specific asset types or reference systems
 - Handle special cases like Addressables, localization keys, or custom asset linking systems
 
-B. UI Integration:
+B. Support for Custom Data Types:
+- Localization keys that reference assets indirectly
+- Weak references to assets (non-direct UnityEngine.Object references)
+- Addressable assets and asset reference systems
+- Custom serialized data that contains asset references
+- Any other project-specific reference patterns
+
+C. UI Integration:
 - Processors can add custom search fields to the Asset Scout interface
 - Each processor can have its own GUI for specialized search parameters
 - Processors can be enabled/disabled individually through the interface
 
-C. Implementation Examples:
+D. Implementation Examples:
 - Custom asset linking systems where references aren't direct UnityEngine.Object references
 - Special handling for scriptable object data fields that contain indirect references
 - Project-specific reference patterns that require custom detection logic
