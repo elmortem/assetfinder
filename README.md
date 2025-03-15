@@ -2,8 +2,6 @@
 
 ![color:ff69b4](https://img.shields.io/badge/Unity-2022.3.x-red)
 
-**Please remove old version of Asset Scout before updating!**
-
 A powerful Unity Editor tool for finding all references to any asset in your project. Whether you're cleaning up unused assets or refactoring your project, Asset Scout helps you track down every usage of materials, prefabs, scriptable objects, and other Unity assets.
 
 ## How It Works
@@ -29,13 +27,21 @@ Unlike Unity's built-in `GetDependencies` API that only shows direct dependencie
 
 ## Installation
 
-### Option 1: Unity Package Manager (Recommended)
+### Option 1: Unity Asset Store (Recommended)
+1. Open the Asset Store window in Unity (Window > Asset Store)
+2. Search for "Asset Scout"
+3. Purchase and download the package
+4. Import the package into your project using the Package Manager
+5. Follow the on-screen instructions to complete the installation
+
+### Option 2: Unity Package Manager via Git URL
 1. Open the Package Manager window in Unity (Window > Package Manager)
 2. Click the "+" button in the top-left corner
 3. Select "Add package from git URL..."
 4. Enter: `https://github.com/elmortem/assetfinder.git?path=AssetFinder/Assets/AssetScout/Package`
+5. Click "Add"
 
-### Option 2: Manual Installation
+### Option 3: Manual Installation
 1. Download this repository
 2. Copy the `AssetScout` folder from `AssetFinder/Assets/AssetScout/Package` to your Unity project's `Packages` folder
 
@@ -49,13 +55,28 @@ Unlike Unity's built-in `GetDependencies` API that only shows direct dependencie
    - Each entry shows the asset containing references
    - Expand entries to see exact paths where the reference is used
 
+## Cache System
+
+Asset Scout uses a cache system to maintain fast search performance:
+
+- **Automatic Updates**: The cache automatically updates when assets are imported, deleted, or moved (if Auto Update Cache is enabled)
+- **Manual Controls**: Auto-update can be disabled in the settings if needed
+- **Performance**: The cache system is highly optimized for quick reference lookups
+
 ## Extensibility
 
-The processor system allows you to extend Asset Scout with custom logic:
+Asset Scout features a powerful processor system that allows you to extend its functionality with custom plugins:
 
-- Create custom processors for special use cases (Addressables, localization keys, etc.)
-- Add custom search fields to the interface
-- Implement project-specific reference detection logic
+- **Custom Processors**: Create your own reference processors by implementing the `IReferenceProcessor` interface
+- **Support for Custom Data Types**: Add support for project-specific asset types or reference systems
+- **Special Use Cases**: Handle specialized scenarios such as:
+  - Localization keys
+  - Weak references to assets
+  - Addressable assets
+  - Custom asset linking systems
+  - Any other project-specific reference patterns
+- **UI Integration**: Add custom search fields to the Asset Scout interface
+- **Selective Enabling**: Processors can be enabled/disabled individually through the interface
 
 ## Requirements
 
