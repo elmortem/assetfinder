@@ -22,6 +22,7 @@ namespace AssetScout.Cache
 
 		private List<IReferenceProcessor> _processors;
 		private readonly Dictionary<string, SerializedCacheEntry> _assetCache = new();
+		private readonly Dictionary<string, long> _assetHashMap = new();
 		private readonly Queue<string> _assetsToProcess = new();
 		private bool _isInitialized;
 		private CancellationTokenSource _rebuildCts;
@@ -67,7 +68,10 @@ namespace AssetScout.Cache
 			{
 				ClearFileModifierTimeCache();
 				if (force)
+				{
 					_assetCache.Clear();
+					_assetHashMap.Clear();
+				}
 
 				//Profiler.BeginSample("FindAssets");
 				//var allAssets = AssetDatabase.FindAssets("", new[] { "Assets" });
@@ -87,9 +91,9 @@ namespace AssetScout.Cache
 					foreach (var guid in allAssets)
 					{
 						var assetPath = AssetDatabase.GUIDToAssetPath(guid);
-						var lastModified = GetFileModifierTime(assetPath);
+						var currentHash = CalculateAssetHash(assetPath);
 
-						if (!_assetCache.ContainsKey(guid) || _assetCache[guid].LastModified != lastModified)
+						if (!_assetHashMap.TryGetValue(guid, out var savedHash) || savedHash != currentHash)
 							assetsToProcess.Add(guid);
 					}
 				}
@@ -193,6 +197,8 @@ namespace AssetScout.Cache
 				var asset = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
 				if (asset == null)
 					return;
+
+				_assetHashMap[assetGuid] = CalculateAssetHash(assetPath);
 
 				//Profiler.BeginSample("ProcessAsset.FindReferencePaths");
 				var referenceResults = new Dictionary<string, HashSet<string>>();
@@ -301,7 +307,12 @@ namespace AssetScout.Cache
 		{
 			var container = new CacheContainer
 			{
-				Entries = _assetCache.Values.ToList(), 
+				Entries = _assetCache.Values.ToList(),
+				AssetHashes = _assetHashMap.Select(kvp => new SerializedAssetHash 
+				{ 
+					Guid = kvp.Key, 
+					Hash = kvp.Value 
+				}).ToList(),
 				LastRebuildTime = _lastRebuildTime.ToBinary()
 			};
 			
@@ -324,12 +335,20 @@ namespace AssetScout.Cache
 				foreach (var entry in container.Entries) 
 					_assetCache[entry.Guid] = entry;
 
+				_assetHashMap.Clear();
+				if (container.AssetHashes != null)
+				{
+					foreach (var hashEntry in container.AssetHashes)
+						_assetHashMap[hashEntry.Guid] = hashEntry.Hash;
+				}
+
 				_lastRebuildTime = DateTime.FromBinary(container.LastRebuildTime);
 			}
 			catch (Exception e)
 			{
 				Debug.LogError($"Failed to load AssetFinder cache: {e.Message}");
 				_assetCache.Clear();
+				_assetHashMap.Clear();
 			}
 		}
 
@@ -350,10 +369,25 @@ namespace AssetScout.Cache
 			return time;
 		}
 
+		private long CalculateAssetHash(string assetPath)
+		{
+			var lastModified = GetFileModifierTime(assetPath);
+			var dependencyHash = AssetDatabase.GetAssetDependencyHash(assetPath);
+			
+			unchecked
+			{
+				int hash = 17;
+				hash = hash * 31 + dependencyHash.GetHashCode();
+				hash = hash * 31 + lastModified.GetHashCode();
+				return hash;
+			}
+		}
+
 		[Serializable]
 		private class CacheContainer
 		{
 			public List<SerializedCacheEntry> Entries = new();
+			public List<SerializedAssetHash> AssetHashes = new();
 			public long LastRebuildTime;
 		}
 
@@ -363,6 +397,13 @@ namespace AssetScout.Cache
 			public string Guid;
 			public long LastModified;
 			public List<SerializedReference> References = new();
+		}
+
+		[Serializable]
+		private class SerializedAssetHash
+		{
+			public string Guid;
+			public long Hash;
 		}
 
 		[Serializable]
