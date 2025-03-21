@@ -7,12 +7,13 @@ using AssetScout.Crawlers;
 using AssetScout.Search;
 using UnityEditor;
 using UnityEngine;
+using System.Collections;
 
 namespace AssetScout.Localization
 {
 	internal class LocalizationReferenceProcessor : IReferenceProcessor
 	{
-		public string ProcessorId => typeof(LocalizationReferenceProcessor).FullName;
+		public string Id => typeof(LocalizationReferenceProcessor).FullName;
 
 		private string _searchKey = string.Empty;
 
@@ -24,7 +25,7 @@ namespace AssetScout.Localization
 			return active ? _searchKey : searchKey;
 		}
 
-		public async Task ProcessElement(object element, TraversalContext context, string assetGuid, Dictionary<string, List<string>> result, CancellationToken cancellationToken)
+		public void ProcessElement(object element, TraversalContext context, string assetGuid, Dictionary<string, HashSet<string>> results)
 		{
 			if (context.FieldInfo?.FieldType == typeof(string) &&
 				context.FieldInfo.GetCustomAttribute<LocalizationStringAttribute>() != null)
@@ -32,7 +33,7 @@ namespace AssetScout.Localization
 				var localizationKey = element as string;
 				if (!string.IsNullOrEmpty(localizationKey))
 				{
-					AddReference(result, localizationKey, context.CurrentPath);
+					AddReference(results, localizationKey, context.CurrentPath);
 				}
 			}
 		}
@@ -41,12 +42,16 @@ namespace AssetScout.Localization
 		{
 			return true;
 		}
-		private void AddReference(Dictionary<string, List<string>> result, string guid, string path)
-		{
-			if (!result.ContainsKey(guid))
-				result[guid] = new List<string>();
 
-			result[guid].Add(path);
+		private void AddReference(Dictionary<string, HashSet<string>> results, string guid, string path)
+		{
+			if (!results.TryGetValue(guid, out var paths))
+			{
+				paths = new HashSet<string>();
+				results[guid] = paths;
+			}
+
+			paths.Add(path);
 		}
 	}
 }

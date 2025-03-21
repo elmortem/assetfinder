@@ -18,7 +18,7 @@ namespace AssetScout.Search
 
 		public void FindReferencePaths(
 			Object sourceAsset,
-			Dictionary<string, HashSet<string>> results,
+			Dictionary<string, Dictionary<string, HashSet<string>>> results,
 			CancellationToken cancellationToken)
 		{
 			if (sourceAsset == null)
@@ -36,7 +36,13 @@ namespace AssetScout.Search
 						shouldCrawlDeeper = false;
 					}
 
-					processor.ProcessElement(currentObject, context, assetGuid, results);
+					if (!results.TryGetValue(processor.Id, out var processorResults))
+					{
+						processorResults = new Dictionary<string, HashSet<string>>();
+						results[processor.Id] = processorResults;
+					}
+
+					processor.ProcessElement(currentObject, context, assetGuid, processorResults);
 				}
 
 				return shouldCrawlDeeper;

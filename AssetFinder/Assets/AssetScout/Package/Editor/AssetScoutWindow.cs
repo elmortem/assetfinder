@@ -25,7 +25,7 @@ namespace AssetScout.Editor
 		private Dictionary<string, bool> _processorStates;
 
 
-		[MenuItem("Tools/Asset Scout")]
+		[MenuItem("Tools/Asset Scout/Asset Scout Window")]
 		public static void ShowWindow()
 		{
 			GetWindow<AssetScoutWindow>("Asset Scout");

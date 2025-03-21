@@ -107,6 +107,12 @@ namespace AssetScout.Cache
 			
 			SaveSettings();
 		}
+		
+		[MenuItem("Tools/Asset Scout/Settings")]
+		static void OpenProjectSettings()
+		{
+			SettingsService.OpenProjectSettings(ProjectSettingsPath);
+		}
 	}
 
 	internal class AssetFinderSettingsProvider : SettingsProvider

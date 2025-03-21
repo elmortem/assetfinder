@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using AssetScout.Search;
 using UnityEditor;
 using UnityEngine;
-using System.Linq;
-using AssetScout.Search;
 //using UnityEngine.Profiling;
 using Object = UnityEngine.Object;
 
@@ -21,7 +21,7 @@ namespace AssetScout.Cache
 		public event Action CacheSaveEvent;
 
 		private List<IReferenceProcessor> _processors;
-		private readonly Dictionary<string, SerializedCacheEntry> _assetCache = new();
+		private readonly Dictionary<string, Dictionary<string, Dictionary<string, List<string>>>> _assetCache = new();
 		private readonly Dictionary<string, long> _assetHashMap = new();
 		private readonly Queue<string> _assetsToProcess = new();
 		private bool _isInitialized;
@@ -163,14 +163,14 @@ namespace AssetScout.Cache
 			}
 		}
 
-		public Dictionary<string, HashSet<string>> FindReferences(string key)
+		public Dictionary<string, HashSet<string>> FindReferences(string key, string processorId = null)
 		{
 			if (!_isInitialized)
 			{
 				LoadCache();
 				_isInitialized = true;
 			}
-
+			
 			var results = new Dictionary<string, HashSet<string>>();
 
 			if (!_assetCache.TryGetValue(key, out var entry))
@@ -178,9 +178,36 @@ namespace AssetScout.Cache
 				return results;
 			}
 
-			foreach (var reference in entry.References)
+			if (!string.IsNullOrEmpty(processorId))
 			{
-				results[reference.TargetGuid] = new HashSet<string>(reference.Paths);
+				if (entry.TryGetValue(processorId, out var processorData))
+				{
+					foreach (var reference in processorData)
+					{
+						results[reference.Key] = new HashSet<string>(reference.Value);
+					}
+				}
+			}
+			else
+			{
+				foreach (var processor in entry)
+				{
+					foreach (var reference in processor.Value)
+					{
+						if (!results.TryGetValue(reference.Key, out var paths))
+						{
+							paths = new HashSet<string>(reference.Value);
+							results[reference.Key] = paths;
+						}
+						else
+						{
+							foreach (var path in reference.Value)
+							{
+								paths.Add(path);
+							}
+						}
+					}
+				}
 			}
 
 			return results;
@@ -201,40 +228,36 @@ namespace AssetScout.Cache
 				_assetHashMap[assetGuid] = CalculateAssetHash(assetPath);
 
 				//Profiler.BeginSample("ProcessAsset.FindReferencePaths");
-				var referenceResults = new Dictionary<string, HashSet<string>>();
+				var referenceResults = new Dictionary<string, Dictionary<string, HashSet<string>>>();
 				searcher.FindReferencePaths(asset, referenceResults, cancellationToken);
 				//Profiler.EndSample();
 
 				//Profiler.BeginSample("ProcessAsset.ApplyDependencies");
-				if (!_assetCache.TryGetValue(assetGuid, out var currentAssetEntry))
+				
+				foreach (var processorEntry in referenceResults)
 				{
-					currentAssetEntry = new SerializedCacheEntry
+					var processorId = processorEntry.Key;
+					var references = processorEntry.Value;
+					
+					foreach (var referenceEntry in references)
 					{
-						Guid = assetGuid,
-						LastModified = GetFileModifierTime(assetPath),
-						References = new List<SerializedReference>()
-					};
-					_assetCache[assetGuid] = currentAssetEntry;
-				}
-
-				currentAssetEntry.LastModified = GetFileModifierTime(assetPath);
-
-				foreach (var kvp in referenceResults)
-				{
-					var targetGuid = kvp.Key;
-					var paths = kvp.Value;
-
-					if (!_assetCache.TryGetValue(targetGuid, out var entry))
-					{
-						entry = new SerializedCacheEntry
+						var targetGuid = referenceEntry.Key;
+						var paths = referenceEntry.Value;
+						
+						if (!_assetCache.TryGetValue(targetGuid, out var targetEntry))
 						{
-							Guid = targetGuid,
-							References = new List<SerializedReference>()
-						};
-						_assetCache[targetGuid] = entry;
+							targetEntry = new Dictionary<string, Dictionary<string, List<string>>>();
+							_assetCache[targetGuid] = targetEntry;
+						}
+						
+						if (!targetEntry.TryGetValue(processorId, out var processorDict))
+						{
+							processorDict = new Dictionary<string, List<string>>();
+							targetEntry[processorId] = processorDict;
+						}
+						
+						processorDict[assetGuid] = new List<string>(paths);
 					}
-
-					entry.References.Add(new SerializedReference { TargetGuid = assetGuid, Paths = new List<string>(paths) });
 				}
 				
 				//Profiler.EndSample();
@@ -305,25 +328,69 @@ namespace AssetScout.Cache
 
 		private void SaveCache()
 		{
-			var container = new CacheContainer
+			try
 			{
-				Entries = _assetCache.Values.ToList(),
-				AssetHashes = _assetHashMap.Select(kvp => new SerializedAssetHash 
-				{ 
-					Guid = kvp.Key, 
-					Hash = kvp.Value 
-				}).ToList(),
-				LastRebuildTime = _lastRebuildTime.ToBinary()
-			};
-			
-			var json = JsonUtility.ToJson(container, true);
-			File.WriteAllText(CacheFilePath, json);
-			CacheSaveEvent?.Invoke();
+				var container = new CacheContainer
+				{
+					LastRebuildTime = DateTime.Now.Ticks,
+					Entries = new List<SerializedEntry>(),
+					AssetHashes = new List<SerializedAssetHash>()
+				};
+
+				foreach (var kvp in _assetCache)
+				{
+					var entry = new SerializedEntry
+					{
+						Guid = kvp.Key,
+						ProcessorGroups = new List<SerializedReferencesGroup>()
+					};
+
+					foreach (var processorKvp in kvp.Value)
+					{
+						var group = new SerializedReferencesGroup
+						{
+							ProcessorId = processorKvp.Key,
+							References = new List<SerializedReference>()
+						};
+
+						foreach (var referenceKvp in processorKvp.Value)
+						{
+							group.References.Add(new SerializedReference
+							{
+								TargetGuid = referenceKvp.Key,
+								Paths = referenceKvp.Value
+							});
+						}
+
+						entry.ProcessorGroups.Add(group);
+					}
+
+					container.Entries.Add(entry);
+				}
+
+				foreach (var kvp in _assetHashMap)
+				{
+					container.AssetHashes.Add(new SerializedAssetHash
+					{
+						Guid = kvp.Key,
+						Hash = kvp.Value
+					});
+				}
+
+				var json = JsonUtility.ToJson(container, true);
+				File.WriteAllText(CacheFilePath, json);
+
+				CacheSaveEvent?.Invoke();
+			}
+			catch (Exception e)
+			{
+				Debug.LogError($"Failed to save AssetFinder cache: {e.Message}");
+			}
 		}
 
 		private void LoadCache()
 		{
-			if (!File.Exists(CacheFilePath)) 
+			if (!File.Exists(CacheFilePath))
 				return;
 
 			try
@@ -333,16 +400,67 @@ namespace AssetScout.Cache
 
 				_assetCache.Clear();
 				foreach (var entry in container.Entries) 
-					_assetCache[entry.Guid] = entry;
+				{
+					var assetEntry = new Dictionary<string, Dictionary<string, List<string>>>();
+					_assetCache[entry.Guid] = assetEntry;
+
+					if (entry.ProcessorGroups == null || entry.ProcessorGroups.Count == 0)
+					{
+						var defaultProcessorId = typeof(DefaultReferenceProcessor).FullName;
+						
+						var oldReferences = entry.GetType().GetField("References")?.GetValue(entry) as List<SerializedReference>;
+						if (oldReferences != null && oldReferences.Count > 0)
+						{
+							var processorDict = new Dictionary<string, List<string>>();
+							assetEntry[defaultProcessorId] = processorDict;
+
+							foreach (var reference in oldReferences)
+							{
+								processorDict[reference.TargetGuid] = reference.Paths;
+							}
+						}
+					}
+					else
+					{
+						foreach (var group in entry.ProcessorGroups)
+						{
+							var processorDict = new Dictionary<string, List<string>>();
+							assetEntry[group.ProcessorId] = processorDict;
+
+							foreach (var reference in group.References)
+							{
+								processorDict[reference.TargetGuid] = reference.Paths;
+							}
+						}
+					}
+				}
 
 				_assetHashMap.Clear();
 				if (container.AssetHashes != null)
 				{
-					foreach (var hashEntry in container.AssetHashes)
-						_assetHashMap[hashEntry.Guid] = hashEntry.Hash;
+					foreach (var hash in container.AssetHashes)
+					{
+						_assetHashMap[hash.Guid] = hash.Hash;
+					}
 				}
 
-				_lastRebuildTime = DateTime.FromBinary(container.LastRebuildTime);
+				try
+				{
+					if (container.LastRebuildTime >= DateTime.MinValue.Ticks && container.LastRebuildTime <= DateTime.MaxValue.Ticks)
+					{
+						_lastRebuildTime = new DateTime(container.LastRebuildTime);
+					}
+					else
+					{
+						_lastRebuildTime = DateTime.Now;
+						Debug.LogError($"Invalid LastRebuildTime value in cache: {container.LastRebuildTime}. Using current time instead.");
+					}
+				}
+				catch (Exception timeEx)
+				{
+					_lastRebuildTime = DateTime.Now;
+					Debug.LogError($"Failed to parse LastRebuildTime: {timeEx.Message}. Using current time instead.");
+				}
 			}
 			catch (Exception e)
 			{
@@ -386,17 +504,30 @@ namespace AssetScout.Cache
 		[Serializable]
 		private class CacheContainer
 		{
-			public List<SerializedCacheEntry> Entries = new();
-			public List<SerializedAssetHash> AssetHashes = new();
 			public long LastRebuildTime;
+			public List<SerializedEntry> Entries = new();
+			public List<SerializedAssetHash> AssetHashes = new();
 		}
 
 		[Serializable]
-		private class SerializedCacheEntry
+		private class SerializedEntry
 		{
 			public string Guid;
-			public long LastModified;
+			public List<SerializedReferencesGroup> ProcessorGroups = new();
+		}
+
+		[Serializable]
+		private class SerializedReferencesGroup
+		{
+			public string ProcessorId;
 			public List<SerializedReference> References = new();
+		}
+		
+		[Serializable]
+		private class SerializedReference
+		{
+			public string TargetGuid;
+			public List<string> Paths = new();
 		}
 
 		[Serializable]
@@ -404,13 +535,6 @@ namespace AssetScout.Cache
 		{
 			public string Guid;
 			public long Hash;
-		}
-
-		[Serializable]
-		private class SerializedReference
-		{
-			public string TargetGuid;
-			public List<string> Paths = new();
 		}
 	}
 }
