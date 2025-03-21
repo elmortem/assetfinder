@@ -9,6 +9,8 @@ namespace AssetScout.Search
 {
 	internal class DefaultReferenceProcessor : IReferenceProcessor
 	{
+		public string Id => typeof(DefaultReferenceProcessor).FullName;
+
 		private Object _targetAsset;
 		private string _searchKey;
 
