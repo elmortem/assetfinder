@@ -19,5 +19,7 @@ namespace AssetFinder.Samples
 		
 		[SerializeField]
 		private Sprite[] _privateSprites;
+		
+		public DoubleTypeProvider DoubleTypeProvider;
 	}
 }
