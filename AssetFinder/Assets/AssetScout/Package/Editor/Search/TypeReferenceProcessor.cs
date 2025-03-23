@@ -24,6 +24,7 @@ namespace AssetScout.Search
 		private static Dictionary<string, HashSet<string>> _namespaceToScriptsCache;
 		private static Dictionary<string, HashSet<string>> _classNameToScriptsCache;
 		private static Dictionary<string, HashSet<string>> _directoryToScriptsCache;
+		private static HashSet<string> _typesFoundByRegex = new();
 
 		public string DrawGUI(string searchKey, bool active)
 		{
@@ -149,6 +150,7 @@ namespace AssetScout.Search
 			_namespaceToScriptsCache = new Dictionary<string, HashSet<string>>();
 			_classNameToScriptsCache = new Dictionary<string, HashSet<string>>();
 			_directoryToScriptsCache = new Dictionary<string, HashSet<string>>();
+			_typesFoundByRegex = new HashSet<string>();
 			
 			var scriptGuids = AssetDatabase.FindAssets("t:MonoScript");
 			foreach (var guid in scriptGuids)
@@ -222,8 +224,8 @@ namespace AssetScout.Search
 			InitializeScriptCaches();
 				
 			string guid = string.Empty;
+			bool usedRegex = false;
 			
-			// Метод 1: Прямой поиск для MonoBehaviour и ScriptableObject
 			if (typeof(ScriptableObject).IsAssignableFrom(type) || typeof(MonoBehaviour).IsAssignableFrom(type))
 			{
 				foreach (var kvp in _monoScriptsCache)
@@ -246,25 +248,15 @@ namespace AssetScout.Search
 					
 					if (Path.GetFileNameWithoutExtension(path) == typeName)
 					{
-						CacheScriptContent(scriptGuid);
-						if (_allScriptsCache.TryGetValue(scriptGuid, out var content))
-						{
-							var pattern = $@"(class|struct|enum|interface)\s+{Regex.Escape(typeName)}(\s|:|<|{{)";
-							if (Regex.IsMatch(content, pattern))
-							{
-								if (type.Namespace == null || content.Contains($"namespace {type.Namespace}"))
-								{
-									guid = scriptGuid;
-									break;
-								}
-							}
-						}
+						guid = scriptGuid;
+						break;
 					}
 				}
 			}
 			
 			if (string.IsNullOrEmpty(guid))
 			{
+				usedRegex = true;
 				var typeName = GetCleanTypeName(type.Name);
 				
 				if (_classNameToScriptsCache.TryGetValue(typeName, out var scriptGuids))
@@ -299,96 +291,103 @@ namespace AssetScout.Search
 						}
 					}
 				}
-			}
-			
-			if (string.IsNullOrEmpty(guid) && type.Namespace != null)
-			{
-				if (_namespaceToScriptsCache.TryGetValue(type.Namespace, out var scriptGuids))
-				{
-					var typeName = GetCleanTypeName(type.Name);
-					foreach (var scriptGuid in scriptGuids)
-					{
-						CacheScriptContent(scriptGuid);
-						if (_allScriptsCache.TryGetValue(scriptGuid, out var content))
-						{
-							var pattern = $@"(class|struct|enum|interface)\s+{Regex.Escape(typeName)}(\s|:|<|{{)";
-							if (Regex.IsMatch(content, pattern))
-							{
-								guid = scriptGuid;
-								break;
-							}
-						}
-					}
-				}
 				
-				if (string.IsNullOrEmpty(guid) && type.Namespace.Contains("."))
+				if (string.IsNullOrEmpty(guid) && type.Namespace != null)
 				{
-					var parentNamespace = type.Namespace.Split('.')[0];
-					if (_namespaceToScriptsCache.TryGetValue(parentNamespace, out scriptGuids))
+					if (_namespaceToScriptsCache.TryGetValue(type.Namespace, out scriptGuids))
 					{
-						var typeName = GetCleanTypeName(type.Name);
+						var typeName2 = GetCleanTypeName(type.Name);
 						foreach (var scriptGuid in scriptGuids)
 						{
 							CacheScriptContent(scriptGuid);
 							if (_allScriptsCache.TryGetValue(scriptGuid, out var content))
 							{
-								if (content.Contains($"namespace {type.Namespace}"))
+								var pattern = $@"(class|struct|enum|interface)\s+{Regex.Escape(typeName2)}(\s|:|<|{{)";
+								if (Regex.IsMatch(content, pattern))
 								{
-									var pattern = $@"(class|struct|enum|interface)\s+{Regex.Escape(typeName)}(\s|:|<|{{)";
-									if (Regex.IsMatch(content, pattern))
+									guid = scriptGuid;
+									break;
+								}
+							}
+						}
+					}
+					
+					if (string.IsNullOrEmpty(guid) && type.Namespace.Contains("."))
+					{
+						var parentNamespace = type.Namespace.Split('.')[0];
+						if (_namespaceToScriptsCache.TryGetValue(parentNamespace, out scriptGuids))
+						{
+							var typeName2 = GetCleanTypeName(type.Name);
+							foreach (var scriptGuid in scriptGuids)
+							{
+								CacheScriptContent(scriptGuid);
+								if (_allScriptsCache.TryGetValue(scriptGuid, out var content))
+								{
+									if (content.Contains($"namespace {type.Namespace}"))
 									{
-										guid = scriptGuid;
-										break;
+										var pattern = $@"(class|struct|enum|interface)\s+{Regex.Escape(typeName2)}(\s|:|<|{{)";
+										if (Regex.IsMatch(content, pattern))
+										{
+											guid = scriptGuid;
+											break;
+										}
 									}
 								}
 							}
+						}
+					}
+				}
+				
+				if (string.IsNullOrEmpty(guid))
+				{
+					var assemblyName = type.Assembly.GetName().Name;
+					var compiledAssemblies = CompilationPipeline.GetAssemblies();
+					
+					foreach (var compiledAssembly in compiledAssemblies)
+					{
+						if (compiledAssembly.name == assemblyName)
+						{
+							var typeName2 = GetCleanTypeName(type.Name);
+							
+							foreach (var sourceFile in compiledAssembly.sourceFiles)
+							{
+								var directory = Path.GetDirectoryName(sourceFile);
+								if (!string.IsNullOrEmpty(directory) && _directoryToScriptsCache.TryGetValue(directory, out var scriptGuids2))
+								{
+									foreach (var scriptGuid in scriptGuids2)
+									{
+										CacheScriptContent(scriptGuid);
+										if (_allScriptsCache.TryGetValue(scriptGuid, out var content))
+										{
+											var pattern = $@"(class|struct|enum|interface)\s+{Regex.Escape(typeName2)}(\s|:|<|{{)";
+											if (Regex.IsMatch(content, pattern))
+											{
+												if (type.Namespace == null || content.Contains($"namespace {type.Namespace}"))
+												{
+													guid = scriptGuid;
+													break;
+												}
+											}
+										}
+									}
+									
+									if (!string.IsNullOrEmpty(guid))
+										break;
+								}
+							}
+							
+							if (!string.IsNullOrEmpty(guid))
+								break;
 						}
 					}
 				}
 			}
 			
-			if (string.IsNullOrEmpty(guid))
+			if (usedRegex && !string.IsNullOrEmpty(guid))
 			{
-				var assemblyName = type.Assembly.GetName().Name;
-				var compiledAssemblies = CompilationPipeline.GetAssemblies();
-				
-				foreach (var compiledAssembly in compiledAssemblies)
-				{
-					if (compiledAssembly.name == assemblyName)
-					{
-						var typeName = GetCleanTypeName(type.Name);
-						
-						foreach (var sourceFile in compiledAssembly.sourceFiles)
-						{
-							var directory = Path.GetDirectoryName(sourceFile);
-							if (!string.IsNullOrEmpty(directory) && _directoryToScriptsCache.TryGetValue(directory, out var scriptGuids))
-							{
-								foreach (var scriptGuid in scriptGuids)
-								{
-									CacheScriptContent(scriptGuid);
-									if (_allScriptsCache.TryGetValue(scriptGuid, out var content))
-									{
-										var pattern = $@"(class|struct|enum|interface)\s+{Regex.Escape(typeName)}(\s|:|<|{{)";
-										if (Regex.IsMatch(content, pattern))
-										{
-											if (type.Namespace == null || content.Contains($"namespace {type.Namespace}"))
-											{
-												guid = scriptGuid;
-												break;
-											}
-										}
-									}
-								}
-								
-								if (!string.IsNullOrEmpty(guid))
-									break;
-							}
-						}
-						
-						if (!string.IsNullOrEmpty(guid))
-							break;
-					}
-				}
+				var typeName = type.FullName ?? type.Name;
+				_typesFoundByRegex.Add(typeName);
+				Debug.Log($"Type found by regex: {typeName}");
 			}
 			
 			_typeToScriptGuidCache[type] = guid;
@@ -436,6 +435,22 @@ namespace AssetScout.Search
 			}
 
 			results[referencedGuid].Add(path);
+		}
+		
+		public static void LogRegexFoundTypes()
+		{
+			if (_typesFoundByRegex != null && _typesFoundByRegex.Count > 0)
+			{
+				Debug.Log($"Total types found by regex: {_typesFoundByRegex.Count}");
+				foreach (var typeName in _typesFoundByRegex)
+				{
+					Debug.Log($"Type found by regex: {typeName}");
+				}
+			}
+			else
+			{
+				Debug.Log("No types were found using regex");
+			}
 		}
 	}
 }
