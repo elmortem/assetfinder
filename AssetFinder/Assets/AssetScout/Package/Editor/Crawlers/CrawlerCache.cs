@@ -14,9 +14,7 @@ namespace AssetScout.Crawlers
 		
 		static CrawlerCache()
 		{
-			Debug.Log("Crawlers re-initializing...");
 			ClearCrawlers();
-			InitializeCrawlers();
 		}
 
 		public static void ClearCrawlers()
@@ -43,6 +41,8 @@ namespace AssetScout.Crawlers
 			}
 
 			_crawlersInitialized = true;
+			
+			Debug.Log("Crawlers initialized...");
 			
 			return _crawlers;
 		}

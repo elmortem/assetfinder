@@ -119,7 +119,6 @@ namespace AssetScout.Cache
 	{
 		private bool _autoUpdateCache;
 		private bool _autoRefresh;
-		private int _maxBackgroundTasks;
 		private float _updateDelay;
 
 		private static class Styles
