@@ -19,11 +19,11 @@ namespace AssetScout.Search
 		private readonly Dictionary<Type, string> _typeToScriptGuidCache = new();
 		private readonly HashSet<System.Reflection.Assembly> _projectAssemblies = new();
 		
-		private static Dictionary<string, string> _allScriptsCache;
 		private static Dictionary<string, MonoScript> _monoScriptsCache;
-		private static Dictionary<string, HashSet<string>> _namespaceToScriptsCache;
-		private static Dictionary<string, HashSet<string>> _classNameToScriptsCache;
 		private static Dictionary<string, HashSet<string>> _directoryToScriptsCache;
+		private static Dictionary<string, HashSet<Type>> _scriptGuidToTypesCache;
+		private static Dictionary<string, HashSet<string>> _assemblyToScriptGuidsCache;
+		private static Dictionary<string, HashSet<string>> _typeNameToScriptGuidsCache;
 		private static HashSet<string> _typesFoundByRegex = new();
 
 		public string DrawGUI(string searchKey, bool active)
@@ -47,20 +47,12 @@ namespace AssetScout.Search
 		public void ProcessElement(object element, TraversalContext context, string assetGuid,
 			Dictionary<string, HashSet<string>> results)
 		{
-			if (element == null)
+			if (element == null || context.PropertyInfo != null)
 				return;
 			
 			var type = element.GetType();
-			ProcessTypeReferences(type, context, assetGuid, results);
 			
-			if (context.FieldInfo != null && type != context.FieldInfo.FieldType)
-			{
-				ProcessTypeReferences(context.FieldInfo.FieldType, context, assetGuid, results);
-			}
-			else if (context.PropertyInfo != null && type != context.PropertyInfo.PropertyType)
-			{
-				ProcessTypeReferences(context.PropertyInfo.PropertyType, context, assetGuid, results);
-			}
+			ProcessTypeReferences(type, context, assetGuid, results);
 		}
 
 		private void ProcessTypeReferences(Type type, TraversalContext context, string assetGuid, 
@@ -142,14 +134,14 @@ namespace AssetScout.Search
 		
 		private void InitializeScriptCaches()
 		{
-			if (_allScriptsCache != null)
+			if (_monoScriptsCache != null)
 				return;
 				
-			_allScriptsCache = new Dictionary<string, string>();
 			_monoScriptsCache = new Dictionary<string, MonoScript>();
-			_namespaceToScriptsCache = new Dictionary<string, HashSet<string>>();
-			_classNameToScriptsCache = new Dictionary<string, HashSet<string>>();
 			_directoryToScriptsCache = new Dictionary<string, HashSet<string>>();
+			_scriptGuidToTypesCache = new Dictionary<string, HashSet<Type>>();
+			_assemblyToScriptGuidsCache = new Dictionary<string, HashSet<string>>();
+			_typeNameToScriptGuidsCache = new Dictionary<string, HashSet<string>>();
 			_typesFoundByRegex = new HashSet<string>();
 			
 			var scriptGuids = AssetDatabase.FindAssets("t:MonoScript");
@@ -162,7 +154,6 @@ namespace AssetScout.Search
 				{
 					_monoScriptsCache[guid] = script;
 					
-					// Кешируем директории скриптов
 					var directory = Path.GetDirectoryName(path);
 					if (!string.IsNullOrEmpty(directory))
 					{
@@ -173,46 +164,76 @@ namespace AssetScout.Search
 						}
 						scripts.Add(guid);
 					}
+					
+					var scriptClass = script.GetClass();
+					if (scriptClass != null)
+					{
+						if (!_scriptGuidToTypesCache.TryGetValue(guid, out var types))
+						{
+							types = new HashSet<Type>();
+							_scriptGuidToTypesCache[guid] = types;
+						}
+						types.Add(scriptClass);
+						
+						var typeName = GetCleanTypeName(scriptClass.Name);
+						if (!_typeNameToScriptGuidsCache.TryGetValue(typeName, out var typeScripts))
+						{
+							typeScripts = new HashSet<string>();
+							_typeNameToScriptGuidsCache[typeName] = typeScripts;
+						}
+						typeScripts.Add(guid);
+						
+						var assemblyName = scriptClass.Assembly.GetName().Name;
+						if (!_assemblyToScriptGuidsCache.TryGetValue(assemblyName, out var assemblyScripts))
+						{
+							assemblyScripts = new HashSet<string>();
+							_assemblyToScriptGuidsCache[assemblyName] = assemblyScripts;
+						}
+						assemblyScripts.Add(guid);
+					}
+					else
+					{
+						ScanScriptContent(guid, path);
+					}
 				}
 			}
 		}
 		
-		private void CacheScriptContent(string guid)
+		private void ScanScriptContent(string guid, string path)
 		{
-			if (_allScriptsCache.ContainsKey(guid))
-				return;
-				
-			var path = AssetDatabase.GUIDToAssetPath(guid);
 			try
 			{
 				var content = File.ReadAllText(path);
-				_allScriptsCache[guid] = content;
+				var fileName = Path.GetFileNameWithoutExtension(path);
 				
+				string namespaceValue = null;
 				var namespaceMatch = Regex.Match(content, @"namespace\s+([^\s{;]+)");
 				if (namespaceMatch.Success)
 				{
-					var ns = namespaceMatch.Groups[1].Value;
-					if (!_namespaceToScriptsCache.ContainsKey(ns))
-					{
-						_namespaceToScriptsCache[ns] = new HashSet<string>();
-					}
-					_namespaceToScriptsCache[ns].Add(guid);
+					namespaceValue = namespaceMatch.Groups[1].Value;
 				}
 				
 				var classMatches = Regex.Matches(content, @"(class|struct|enum|interface)\s+([^\s:<{]+)");
 				foreach (Match match in classMatches)
 				{
 					var className = match.Groups[2].Value;
-					if (!_classNameToScriptsCache.ContainsKey(className))
+					
+					if (!_typeNameToScriptGuidsCache.TryGetValue(className, out var typeScripts))
 					{
-						_classNameToScriptsCache[className] = new HashSet<string>();
+						typeScripts = new HashSet<string>();
+						_typeNameToScriptGuidsCache[className] = typeScripts;
 					}
-					_classNameToScriptsCache[className].Add(guid);
+					typeScripts.Add(guid);
+					
+					if (className == fileName)
+					{
+						_typesFoundByRegex.Add(className);
+					}
 				}
 			}
 			catch (Exception ex)
 			{
-				Debug.LogWarning($"Error reading file {path}: {ex.Message}");
+				Debug.LogWarning($"Error scanning file {path}: {ex.Message}");
 			}
 		}
 
@@ -226,7 +247,29 @@ namespace AssetScout.Search
 			string guid = string.Empty;
 			bool usedRegex = false;
 			
-			if (typeof(ScriptableObject).IsAssignableFrom(type) || typeof(MonoBehaviour).IsAssignableFrom(type))
+			var typeName = GetCleanTypeName(type.Name);
+			if (_typeNameToScriptGuidsCache.TryGetValue(typeName, out var scriptGuids))
+			{
+				foreach (var scriptGuid in scriptGuids)
+				{
+					var path = AssetDatabase.GUIDToAssetPath(scriptGuid);
+					
+					if (Path.GetFileNameWithoutExtension(path) == typeName)
+					{
+						guid = scriptGuid;
+						break;
+					}
+					
+					if (_scriptGuidToTypesCache.TryGetValue(scriptGuid, out var types) && types.Contains(type))
+					{
+						guid = scriptGuid;
+						break;
+					}
+				}
+			}
+			
+			if (string.IsNullOrEmpty(guid) && 
+				(typeof(ScriptableObject).IsAssignableFrom(type) || typeof(MonoBehaviour).IsAssignableFrom(type)))
 			{
 				foreach (var kvp in _monoScriptsCache)
 				{
@@ -240,28 +283,10 @@ namespace AssetScout.Search
 			
 			if (string.IsNullOrEmpty(guid))
 			{
-				var typeName = GetCleanTypeName(type.Name);
-				var scriptGuids = AssetDatabase.FindAssets($"{typeName} t:MonoScript");
-				foreach (var scriptGuid in scriptGuids)
+				var assemblyName = type.Assembly.GetName().Name;
+				if (_assemblyToScriptGuidsCache.TryGetValue(assemblyName, out var assemblyScripts))
 				{
-					var path = AssetDatabase.GUIDToAssetPath(scriptGuid);
-					
-					if (Path.GetFileNameWithoutExtension(path) == typeName)
-					{
-						guid = scriptGuid;
-						break;
-					}
-				}
-			}
-			
-			if (string.IsNullOrEmpty(guid))
-			{
-				usedRegex = true;
-				var typeName = GetCleanTypeName(type.Name);
-				
-				if (_classNameToScriptsCache.TryGetValue(typeName, out var scriptGuids))
-				{
-					foreach (var scriptGuid in scriptGuids)
+					foreach (var scriptGuid in assemblyScripts)
 					{
 						var path = AssetDatabase.GUIDToAssetPath(scriptGuid);
 						
@@ -271,123 +296,97 @@ namespace AssetScout.Search
 							break;
 						}
 						
-						if (string.IsNullOrEmpty(guid))
+						if (_scriptGuidToTypesCache.TryGetValue(scriptGuid, out var types) && types.Contains(type))
 						{
-							CacheScriptContent(scriptGuid);
-							if (_allScriptsCache.TryGetValue(scriptGuid, out var content))
+							guid = scriptGuid;
+							break;
+						}
+					}
+				}
+			}
+			
+			if (string.IsNullOrEmpty(guid))
+			{
+				usedRegex = true;
+				var assemblyName = type.Assembly.GetName().Name;
+				var compiledAssemblies = CompilationPipeline.GetAssemblies();
+				
+				foreach (var compiledAssembly in compiledAssemblies)
+				{
+					if (compiledAssembly.name == assemblyName)
+					{
+						foreach (var sourceFile in compiledAssembly.sourceFiles)
+						{
+							var directory = Path.GetDirectoryName(sourceFile);
+							if (!string.IsNullOrEmpty(directory) && _directoryToScriptsCache.TryGetValue(directory, out var directoryScripts))
 							{
-								var pattern = $@"(class|struct|enum|interface)\s+{Regex.Escape(typeName)}(\s|:|<|{{)";
-								if (Regex.IsMatch(content, pattern))
+								foreach (var scriptGuid in directoryScripts)
 								{
-									if (type.Namespace != null && 
-										(content.Contains($"namespace {type.Namespace}") || 
-										content.Contains($"namespace {type.Namespace.Split('.')[0]}")))
+									var path = AssetDatabase.GUIDToAssetPath(scriptGuid);
+									
+									if (Path.GetFileNameWithoutExtension(path) == typeName)
 									{
 										guid = scriptGuid;
 										break;
 									}
-								}
-							}
-						}
-					}
-				}
-				
-				if (string.IsNullOrEmpty(guid) && type.Namespace != null)
-				{
-					if (_namespaceToScriptsCache.TryGetValue(type.Namespace, out scriptGuids))
-					{
-						var typeName2 = GetCleanTypeName(type.Name);
-						foreach (var scriptGuid in scriptGuids)
-						{
-							CacheScriptContent(scriptGuid);
-							if (_allScriptsCache.TryGetValue(scriptGuid, out var content))
-							{
-								var pattern = $@"(class|struct|enum|interface)\s+{Regex.Escape(typeName2)}(\s|:|<|{{)";
-								if (Regex.IsMatch(content, pattern))
-								{
-									guid = scriptGuid;
-									break;
-								}
-							}
-						}
-					}
-					
-					if (string.IsNullOrEmpty(guid) && type.Namespace.Contains("."))
-					{
-						var parentNamespace = type.Namespace.Split('.')[0];
-						if (_namespaceToScriptsCache.TryGetValue(parentNamespace, out scriptGuids))
-						{
-							var typeName2 = GetCleanTypeName(type.Name);
-							foreach (var scriptGuid in scriptGuids)
-							{
-								CacheScriptContent(scriptGuid);
-								if (_allScriptsCache.TryGetValue(scriptGuid, out var content))
-								{
-									if (content.Contains($"namespace {type.Namespace}"))
+									
+									if (string.IsNullOrEmpty(guid))
 									{
-										var pattern = $@"(class|struct|enum|interface)\s+{Regex.Escape(typeName2)}(\s|:|<|{{)";
-										if (Regex.IsMatch(content, pattern))
+										if (_scriptGuidToTypesCache.TryGetValue(scriptGuid, out var types))
 										{
-											guid = scriptGuid;
-											break;
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-				
-				if (string.IsNullOrEmpty(guid))
-				{
-					var assemblyName = type.Assembly.GetName().Name;
-					var compiledAssemblies = CompilationPipeline.GetAssemblies();
-					
-					foreach (var compiledAssembly in compiledAssemblies)
-					{
-						if (compiledAssembly.name == assemblyName)
-						{
-							var typeName2 = GetCleanTypeName(type.Name);
-							
-							foreach (var sourceFile in compiledAssembly.sourceFiles)
-							{
-								var directory = Path.GetDirectoryName(sourceFile);
-								if (!string.IsNullOrEmpty(directory) && _directoryToScriptsCache.TryGetValue(directory, out var scriptGuids2))
-								{
-									foreach (var scriptGuid in scriptGuids2)
-									{
-										CacheScriptContent(scriptGuid);
-										if (_allScriptsCache.TryGetValue(scriptGuid, out var content))
-										{
-											var pattern = $@"(class|struct|enum|interface)\s+{Regex.Escape(typeName2)}(\s|:|<|{{)";
-											if (Regex.IsMatch(content, pattern))
+											if (types.Contains(type))
 											{
-												if (type.Namespace == null || content.Contains($"namespace {type.Namespace}"))
+												guid = scriptGuid;
+												break;
+											}
+										}
+										else
+										{
+											try
+											{
+												var content = File.ReadAllText(path);
+												var pattern = $@"(class|struct|enum|interface)\s+{Regex.Escape(typeName)}(\s|:|<|{{)";
+												if (Regex.IsMatch(content, pattern))
 												{
-													guid = scriptGuid;
-													break;
+													if (type.Namespace == null || content.Contains($"namespace {type.Namespace}"))
+													{
+														guid = scriptGuid;
+														
+														if (!_scriptGuidToTypesCache.TryGetValue(scriptGuid, out var scriptTypes))
+														{
+															scriptTypes = new HashSet<Type>();
+															_scriptGuidToTypesCache[scriptGuid] = scriptTypes;
+														}
+														scriptTypes.Add(type);
+														
+														break;
+													}
 												}
+											}
+											catch (Exception ex)
+											{
+												Debug.LogWarning($"Error scanning file {path}: {ex.Message}");
 											}
 										}
 									}
-									
-									if (!string.IsNullOrEmpty(guid))
-										break;
 								}
+								
+								if (!string.IsNullOrEmpty(guid))
+									break;
 							}
-							
-							if (!string.IsNullOrEmpty(guid))
-								break;
 						}
+						
+						if (!string.IsNullOrEmpty(guid))
+							break;
 					}
 				}
 			}
 			
 			if (usedRegex && !string.IsNullOrEmpty(guid))
 			{
-				var typeName = type.FullName ?? type.Name;
-				_typesFoundByRegex.Add(typeName);
-				Debug.Log($"Type found by regex: {typeName}");
+				var typeFullName = type.FullName ?? type.Name;
+				_typesFoundByRegex.Add(typeFullName);
+				Debug.Log($"Type found by regex: {typeFullName}");
 			}
 			
 			_typeToScriptGuidCache[type] = guid;
