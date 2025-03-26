@@ -28,19 +28,6 @@ namespace AssetScout.Search
 
 		public string DrawGUI(string searchKey, bool active)
 		{
-			if (_targetAsset == null && !string.IsNullOrEmpty(searchKey))
-			{
-				_targetAsset = AssetDatabase.LoadAssetAtPath<MonoScript>(AssetDatabase.GUIDToAssetPath(searchKey));
-				_searchKey = searchKey;
-			}
-
-			var newAsset = (MonoScript)EditorGUILayout.ObjectField(_targetAsset, typeof(MonoScript), false);
-			if (newAsset != _targetAsset)
-			{
-				_targetAsset = newAsset;
-				_searchKey = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(_targetAsset));
-			}
-
 			return _searchKey;
 		}
 
@@ -136,7 +123,7 @@ namespace AssetScout.Search
 		{
 			if (_monoScriptsCache != null)
 				return;
-				
+			
 			_monoScriptsCache = new Dictionary<string, MonoScript>();
 			_directoryToScriptsCache = new Dictionary<string, HashSet<string>>();
 			_scriptGuidToTypesCache = new Dictionary<string, HashSet<Type>>();
