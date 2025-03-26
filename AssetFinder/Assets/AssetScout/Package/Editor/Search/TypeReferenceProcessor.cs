@@ -14,8 +14,6 @@ namespace AssetScout.Search
 	{
 		public string Id => typeof(TypeReferenceProcessor).FullName;
 
-		private MonoScript _targetAsset;
-		private string _searchKey;
 		private readonly Dictionary<Type, string> _typeToScriptGuidCache = new();
 		private readonly HashSet<System.Reflection.Assembly> _projectAssemblies = new();
 		
@@ -28,7 +26,7 @@ namespace AssetScout.Search
 
 		public string DrawGUI(string searchKey, bool active)
 		{
-			return _searchKey;
+			return searchKey;
 		}
 
 		public void ProcessElement(object element, TraversalContext context, string assetGuid,
