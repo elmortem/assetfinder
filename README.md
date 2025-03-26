@@ -16,7 +16,14 @@ Unlike Unity's built-in `GetDependencies` API that only shows direct dependencie
   - Prefabs
   - Scriptable Objects
   - Materials (including shader properties)
+  - Type references (finds which assets use specific C# types)
   - And other Unity assets
+- **Type Reference Search**: Find assets that use specific C# types, including:
+  - SerializeReference fields
+  - Components in prefabs
+  - Generic type arguments
+  - Custom serializable classes
+  - Multiple types within a single script file (search is performed by script asset)
 - **Detailed Results**: Shows exact paths to referenced assets
 - **Fast & Efficient**: Immediately search with rebuilt cache
 - **Performance**: Rebuild cache with progress tracking (approximately 150 seconds for 35,000 assets)
@@ -77,6 +84,23 @@ Asset Scout features a powerful processor system that allows you to extend its f
   - Any other project-specific reference patterns
 - **UI Integration**: Add custom search fields to the Asset Scout interface
 - **Selective Enabling**: Processors can be enabled/disabled individually through the interface
+
+## Type Reference Processor
+
+Asset Scout includes a powerful Type Reference Processor that allows you to find all assets that use specific C# types in your project:
+
+- **Find SerializeReference Usage**: Discover all assets that use [SerializeReference] attribute with your custom types, helping you track polymorphic references across your project
+- **Component Usage Tracking**: Find exactly which prefabs and scenes use specific component types, making it easy to understand component dependencies
+- **Script Asset Based Search**: Search is performed at the script asset level, correctly handling multiple types defined in a single script file
+- **Nested Type Detection**: Identify usage of your types in generic collections and custom classes
+- **Refactoring Safety**: Safely modify types by knowing all places they are used
+- **Code Dependency Analysis**: Understand dependencies between different systems in your project
+
+This feature is especially valuable when:
+- Refactoring your codebase while preserving type references
+- Cleaning up deprecated types and ensuring they're completely removed
+- Understanding type usage across prefabs and scriptable objects
+- Finding all prefabs that use specific components for targeted updates
 
 ## Requirements
 

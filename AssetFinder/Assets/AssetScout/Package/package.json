@@ -7,7 +7,7 @@
     "email": "elmortem@gmail.com", 
     "url": "https://makar.rs"
   },
-  "version": "1.2.11",
+  "version": "1.2.12",
   "unity": "2022.3",
   "description": "Gain complete visibility into your project's asset dependencies. Asset Scout is a Unity editor tool that instantly finds all references to any asset – in scenes, prefabs, materials, ScriptableObjects, and even nested prefabs.",
   "keywords": [
@@ -29,7 +29,12 @@
     "scenes",
     "unity",
     "tools",
-    "utility"
+    "utility",
+    "type",
+    "types",
+    "serialize",
+    "serializable",
+    "serialize reference"
   ],
   "category": "Editor"
 }

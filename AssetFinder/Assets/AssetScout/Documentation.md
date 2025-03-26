@@ -96,12 +96,31 @@ Asset Scout can detect references in:
 - Prefab assets (.prefab)
 - Scriptable Objects
 - Materials and their shader properties
+- C# type references (finds which assets use specific C# types)
 - Any other Unity asset types that can contain references
 
 Search results show:
 - The asset containing the reference
 - Exact property paths where the reference is used
 - Hierarchical view of nested references
+
+### Type Reference Search
+The Type Reference Processor provides a powerful way to find assets that use specific C# types in your project:
+
+- **SerializeReference Support**: Find all assets that use SerializeReference attribute with your custom types
+- **Component Usage**: Discover which prefabs and scenes use specific component types
+- **Generic Type Detection**: Identify usage of your types as generic arguments in collections and custom classes
+- **Custom Type Tracking**: Track the usage of your serializable classes throughout the project
+- **Multiple Types Support**: Handles multiple types defined in a single script file (search is performed by script asset)
+- **Refactoring Aid**: Safely refactor or modify types by knowing all their usage locations
+- **Dependency Analysis**: Understand the dependency graph of your custom types
+
+This feature is particularly useful when:
+- Refactoring code to ensure all usages are updated
+- Removing deprecated types from your codebase
+- Understanding the impact of changes to shared types
+- Analyzing dependencies between different systems in your project
+- Finding where specific components are used across scenes and prefabs
 
 ## 8. Extensibility
 Asset Scout features a powerful processor system that allows you to extend its functionality with custom plugins:
@@ -127,6 +146,27 @@ D. Implementation Examples:
 - Custom asset linking systems where references aren't direct UnityEngine.Object references
 - Special handling for scriptable object data fields that contain indirect references
 - Project-specific reference patterns that require custom detection logic
+
+### Built-in Processors
+Asset Scout includes several built-in processors:
+
+1. **Default Reference Processor**:
+   - Handles standard Unity asset references
+   - Detects direct UnityEngine.Object references
+   - Processes prefab variants and nested prefabs
+
+2. **Type Reference Processor**:
+   - Finds assets that use specific C# types
+   - Detects type references in serialized fields, properties, and collections
+   - Supports generic types and arrays
+   - Optimized with caching system for fast type lookups
+   - Excludes primitive types and Unity built-in types
+   - **Key Features**:
+     - Detects SerializeReference fields that reference specific types
+     - Finds components used in prefabs and scenes
+     - Identifies generic type arguments in collections and custom classes
+     - Helps track down usage of your custom types across the project
+     - Useful for refactoring and code dependency analysis
 
 ## 9. Technical Requirements
 - Unity Version: 2020.3 or newer
