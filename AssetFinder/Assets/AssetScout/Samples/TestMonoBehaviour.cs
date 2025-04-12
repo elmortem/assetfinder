@@ -1,11 +1,11 @@
 using UnityEngine;
 
-namespace AssetFinder.Samples
+namespace AssetScout.Samples
 {
     public class TestMonoBehaviour : MonoBehaviour
     {
         public Material PublicMaterial;
-
+        
         [SerializeField]
         private Material _privateMaterial;
         

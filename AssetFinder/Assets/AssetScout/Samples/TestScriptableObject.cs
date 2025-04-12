@@ -1,6 +1,7 @@
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 
-namespace AssetFinder.Samples
+namespace AssetScout.Samples
 {
 	[CreateAssetMenu]
 	public class TestScriptableObject : ScriptableObject
@@ -21,5 +22,8 @@ namespace AssetFinder.Samples
 		private Sprite[] _privateSprites;
 		
 		public DoubleTypeProvider DoubleTypeProvider;
+		
+		public AssetReferenceGameObject Addressable_GameObject;
+		public AssetReferenceSprite Addressable_Sprite;
 	}
 }

@@ -50,7 +50,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8646449905179563252, guid: 6e93317368e66fd4fb935298fe0a10fc, type: 3}
       propertyPath: m_Name
-      value: ChildNestedPrefab
+      value: NestedPrefabVariant
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

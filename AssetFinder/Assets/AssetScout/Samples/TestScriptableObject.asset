@@ -24,3 +24,13 @@ MonoBehaviour:
   DoubleTypeProvider:
     MyType:
       Value: 111
+  Addressable_GameObject:
+    m_AssetGUID: cd72408271c81014496f578a9312e8bc
+    m_SubObjectName: 
+    m_SubObjectType: 
+    m_EditorAssetChanged: 0
+  Addressable_Sprite:
+    m_AssetGUID: 024b7ff0a744c1344a763976568869b9
+    m_SubObjectName: 
+    m_SubObjectType: 
+    m_EditorAssetChanged: 0
