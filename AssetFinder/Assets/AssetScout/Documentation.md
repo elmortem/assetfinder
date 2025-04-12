@@ -168,6 +168,17 @@ Asset Scout includes several built-in processors:
      - Helps track down usage of your custom types across the project
      - Useful for refactoring and code dependency analysis
 
+3. **Addressables Reference Processor**:
+   - Detects references to assets through the Addressables system
+   - Finds AssetReference objects and their derived types
+   - Supports all standard AssetReference types (AssetReferenceGameObject, AssetReferenceTexture, etc.)
+   - Automatically identifies custom AssetReference types
+   - **Key Features**:
+     - Finds indirect asset references through the Addressables system
+     - Helps track down usage of Addressable assets across your project
+     - Useful for managing Addressable asset dependencies
+     - Requires the Addressables package to be installed
+
 ## 9. Technical Requirements
 - Unity Version: 2020.3 or newer
 - .NET Standard: 2.0 or later
