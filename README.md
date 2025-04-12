@@ -17,6 +17,7 @@ Unlike Unity's built-in `GetDependencies` API that only shows direct dependencie
   - Scriptable Objects
   - Materials (including shader properties)
   - Type references (finds which assets use specific C# types)
+  - Addressable assets (finds references through AssetReference objects)
   - And other Unity assets
 - **Type Reference Search**: Find assets that use specific C# types, including:
   - SerializeReference fields
@@ -79,7 +80,6 @@ Asset Scout features a powerful processor system that allows you to extend its f
 - **Special Use Cases**: Handle specialized scenarios such as:
   - Localization keys
   - Weak references to assets
-  - Addressable assets
   - Custom asset linking systems
   - Any other project-specific reference patterns
 - **UI Integration**: Add custom search fields to the Asset Scout interface
@@ -101,6 +101,21 @@ This feature is especially valuable when:
 - Cleaning up deprecated types and ensuring they're completely removed
 - Understanding type usage across prefabs and scriptable objects
 - Finding all prefabs that use specific components for targeted updates
+
+## Addressables Reference Processor
+
+Asset Scout includes an Addressables Reference Processor that allows you to find all assets that reference your Addressable assets:
+
+- **AssetReference Detection**: Find all assets that reference your Addressable assets through AssetReference objects
+- **Custom AssetReference Support**: Automatically detects and processes custom AssetReference types
+- **Dependency Tracking**: Understand which assets depend on your Addressable assets
+- **Refactoring Safety**: Safely modify or reorganize your Addressable assets by knowing all places they are used
+
+This feature is especially valuable when:
+- Refactoring your Addressables setup
+- Tracking usage of Addressable assets across your project
+- Understanding dependencies between regular assets and Addressable assets
+- Cleaning up unused Addressable assets
 
 ## Requirements
 
