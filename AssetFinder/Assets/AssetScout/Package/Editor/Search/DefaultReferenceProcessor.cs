@@ -14,6 +14,10 @@ namespace AssetScout.Search
 		private Object _targetAsset;
 		private string _searchKey;
 
+		public void Reset()
+		{
+		}
+
 		public string DrawGUI(string searchKey, bool active)
 		{
 			if (_targetAsset == null && !string.IsNullOrEmpty(searchKey))

@@ -1,6 +1,6 @@
 using System;
 
-namespace AssetFinder.Samples
+namespace AssetScout.Samples
 {
 	[Serializable]
 	public class DoubleTypeProvider

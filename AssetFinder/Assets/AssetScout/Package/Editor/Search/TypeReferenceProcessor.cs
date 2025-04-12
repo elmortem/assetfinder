@@ -24,6 +24,10 @@ namespace AssetScout.Search
 		private static Dictionary<string, HashSet<string>> _typeNameToScriptGuidsCache;
 		private static HashSet<string> _typesFoundByRegex = new();
 
+		public void Reset()
+		{
+		}
+
 		public string DrawGUI(string searchKey, bool active)
 		{
 			return searchKey;

@@ -14,6 +14,10 @@ namespace AssetScout.Search
 		public ObjectReferenceSearcher(List<IReferenceProcessor> processors)
 		{
 			_processors = processors ?? new List<IReferenceProcessor>();
+			foreach (var processor in _processors)
+			{
+				processor.Reset();
+			}
 		}
 
 		public void FindReferencePaths(
