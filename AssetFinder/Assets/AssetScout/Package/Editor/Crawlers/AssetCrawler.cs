@@ -38,13 +38,13 @@ namespace AssetScout.Crawlers
 			{
 				return;
 			}
-			
-			if (!_processed.Add(currentObject))
+
+			if (!elementProcessor(currentObject, context))
 			{
 				return;
 			}
-
-			if (!elementProcessor(currentObject, context))
+			
+			if (!_processed.Add(currentObject))
 			{
 				return;
 			}

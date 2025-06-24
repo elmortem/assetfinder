@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using AssetScout.Search;
 using UnityEditor;
 using UnityEngine;
-//using UnityEngine.Profiling;
 using Object = UnityEngine.Object;
 
 namespace AssetScout.Cache
@@ -73,7 +72,6 @@ namespace AssetScout.Cache
 					_assetHashMap.Clear();
 				}
 
-				//Profiler.BeginSample("FindAssets");
 				//var allAssets = AssetDatabase.FindAssets("", new[] { "Assets" });
 				var allAssets = AssetDatabase.FindAssets(
 					"t:GameObject t:ScriptableObject t:Material t:SceneAsset t:SpriteAtlas", new[] { "Assets" });
@@ -82,7 +80,6 @@ namespace AssetScout.Cache
 
 				//allAssets = allAssets.Where(guid => AssetUtility.IsBaseAsset(AssetDatabase.GUIDToAssetPath(guid)))
 				//	.ToArray();
-				//Profiler.EndSample();
 
 				var assetsToProcess = new List<string>();
 
@@ -139,6 +136,7 @@ namespace AssetScout.Cache
 			var searcher = new ObjectReferenceSearcher(_processors);
 
 			var batchSize = Mathf.Max(10, Mathf.Min(100, Mathf.FloorToInt(Mathf.Sqrt(assets.Count))));
+			Debug.Log($"Assets count: {assets.Count}");
 			Debug.Log($"Batch size: {batchSize}");
 
 			for (var i = 0; i < assets.Count; i += batchSize)
@@ -148,18 +146,14 @@ namespace AssetScout.Cache
 
 				var currentBatch = assets.Skip(i).Take(batchSize).ToArray();
 
-				//Profiler.BeginSample("ProcessAssets.Batch");
 				foreach (var guid in currentBatch)
 				{
-					//Profiler.BeginSample("ProcessAssets.ProcessAsset");
 					ProcessAsset(searcher, guid, token);
-					//Profiler.EndSample();
 				}
 				
 				//Resources.UnloadUnusedAssets(); // so slow
 
 				onProgress?.Invoke(currentBatch.Length);
-				//Profiler.EndSample();
 			}
 		}
 
@@ -227,12 +221,8 @@ namespace AssetScout.Cache
 
 				_assetHashMap[assetGuid] = CalculateAssetHash(assetPath);
 
-				//Profiler.BeginSample("ProcessAsset.FindReferencePaths");
 				var referenceResults = new Dictionary<string, Dictionary<string, HashSet<string>>>();
 				searcher.FindReferencePaths(asset, referenceResults, cancellationToken);
-				//Profiler.EndSample();
-
-				//Profiler.BeginSample("ProcessAsset.ApplyDependencies");
 				
 				foreach (var processorEntry in referenceResults)
 				{
@@ -259,8 +249,6 @@ namespace AssetScout.Cache
 						processorDict[assetGuid] = new List<string>(paths);
 					}
 				}
-				
-				//Profiler.EndSample();
 			}
 			finally
 			{
