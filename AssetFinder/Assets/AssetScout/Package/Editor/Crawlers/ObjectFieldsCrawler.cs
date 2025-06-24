@@ -10,6 +10,18 @@ namespace AssetScout.Crawlers
 {
 	public class ObjectFieldsCrawler : IAssetCrawler
 	{
+		private static readonly HashSet<Type> IgnoreTypes = new ()
+		{
+			typeof(bool), typeof(byte), typeof(sbyte), typeof(char),
+			typeof(decimal), typeof(double), typeof(float),
+			typeof(int), typeof(uint), typeof(long), typeof(ulong),
+			typeof(short), typeof(ushort), typeof(string),
+			typeof(DateTime), typeof(DateTimeOffset), typeof(TimeSpan),
+			typeof(Guid), typeof(Vector2), typeof(Vector3), typeof(Vector4),
+			typeof(Color), typeof(Color32), typeof(Quaternion),
+			typeof(Rect), typeof(Bounds)
+		};
+		
 		public bool CanCrawl(object currentObject) => !(currentObject is GameObject) && !(currentObject is SceneAsset);
 
 		public IEnumerable<TraversalContext> GetChildren(object currentObject, TraversalContext parentContext)
@@ -18,6 +30,10 @@ namespace AssetScout.Crawlers
 				yield break;
 			
 			var type = currentObject.GetType();
+			
+			if (type.IsEnum || IgnoreTypes.Contains(type))
+				yield break;
+			
 			FieldInfo[] fields;
 			try
 			{

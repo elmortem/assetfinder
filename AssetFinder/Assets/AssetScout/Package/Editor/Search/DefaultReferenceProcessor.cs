@@ -130,9 +130,11 @@ namespace AssetScout.Search
 
 		public bool ShouldCrawlDeeper(object currentObject, TraversalContext context)
 		{
-			if (currentObject is Object unityObject && 
-				(context.FieldInfo != null || context.PropertyInfo != null) &&
-				AssetDatabase.Contains(unityObject))
+			var unityObject = currentObject as Object;
+			if (unityObject == null)
+				return true;
+			
+			if (context.FieldInfo != null || context.PropertyInfo != null)
 			{
 				return false;
 			}

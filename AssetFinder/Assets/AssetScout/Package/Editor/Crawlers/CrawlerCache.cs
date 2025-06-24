@@ -42,7 +42,7 @@ namespace AssetScout.Crawlers
 
 			_crawlersInitialized = true;
 			
-			Debug.Log("Crawlers initialized...");
+			//Debug.Log("Crawlers initialized...");
 			
 			return _crawlers;
 		}
