@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using AssetScout.Search;
+using AssetScout.Utilities;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -13,7 +13,8 @@ namespace AssetScout.Cache
 {
 	public class AssetCache
 	{
-		private const string CacheFilePath = "Library/AssetScoutCache.json";
+		private const string CacheFilePath = "Library/AssetScoutCache.bin";
+		private const string LegacyCacheFilePath = "Library/AssetScoutCache.json";
 
 		public static AssetCache Instance { get; } = new();
 
@@ -74,14 +75,11 @@ namespace AssetScout.Cache
 					_assetHashMap.Clear();
 				}
 
-				//var allAssets = AssetDatabase.FindAssets("", new[] { "Assets" });
-				var allAssets = AssetDatabase.FindAssets(
-					"t:GameObject t:ScriptableObject t:Material t:SceneAsset t:SpriteAtlas", new[] { "Assets" });
+				var allAssets = AssetDatabase.FindAssets("", new[] { "Assets" });
+				//var allAssets = AssetDatabase.FindAssets(
+				//	"t:GameObject t:ScriptableObject t:Material t:SceneAsset t:SpriteAtlas", new[] { "Assets" });
 				//var allAssets = AssetDatabase.FindAssets("t:GameObject Test", new[] { "Assets" });
 				//var allAssets = AssetDatabase.FindAssets("t:Scene Sample", new[] { "Assets" });
-
-				//allAssets = allAssets.Where(guid => AssetUtility.IsBaseAsset(AssetDatabase.GUIDToAssetPath(guid)))
-				//	.ToArray();
 
 				var assetsToProcess = new List<string>();
 
@@ -361,55 +359,41 @@ namespace AssetScout.Cache
 		{
 			try
 			{
-				var container = new CacheContainer
+				using (var stream = File.Open(CacheFilePath, FileMode.Create))
+				using (var writer = new BinaryWriter(stream))
 				{
-					LastRebuildTime = DateTime.Now.Ticks,
-					Entries = new List<SerializedEntry>(),
-					AssetHashes = new List<SerializedAssetHash>()
-				};
+					writer.Write(DateTime.Now.Ticks);
 
-				foreach (var kvp in _assetCache)
-				{
-					var entry = new SerializedEntry
+					writer.Write(_assetCache.Count);
+					foreach (var kvp in _assetCache)
 					{
-						Guid = kvp.Key,
-						ProcessorGroups = new List<SerializedReferencesGroup>()
-					};
+						writer.Write(kvp.Key);
+						writer.Write(kvp.Value.Count);
 
-					foreach (var processorKvp in kvp.Value)
-					{
-						var group = new SerializedReferencesGroup
+						foreach (var processorKvp in kvp.Value)
 						{
-							ProcessorId = processorKvp.Key,
-							References = new List<SerializedReference>()
-						};
+							writer.Write(processorKvp.Key);
+							writer.Write(processorKvp.Value.Count);
 
-						foreach (var referenceKvp in processorKvp.Value)
-						{
-							group.References.Add(new SerializedReference
+							foreach (var referenceKvp in processorKvp.Value)
 							{
-								TargetGuid = referenceKvp.Key,
-								Paths = referenceKvp.Value
-							});
+								writer.Write(referenceKvp.Key);
+								writer.Write(referenceKvp.Value.Count);
+								foreach (var path in referenceKvp.Value)
+								{
+									writer.Write(path);
+								}
+							}
 						}
-
-						entry.ProcessorGroups.Add(group);
 					}
 
-					container.Entries.Add(entry);
-				}
-
-				foreach (var kvp in _assetHashMap)
-				{
-					container.AssetHashes.Add(new SerializedAssetHash
+					writer.Write(_assetHashMap.Count);
+					foreach (var kvp in _assetHashMap)
 					{
-						Guid = kvp.Key,
-						Hash = kvp.Value
-					});
+						writer.Write(kvp.Key);
+						writer.Write(kvp.Value);
+					}
 				}
-
-				var json = JsonUtility.ToJson(container, true);
-				File.WriteAllText(CacheFilePath, json);
 
 				CacheSaveEvent?.Invoke();
 			}
@@ -421,78 +405,67 @@ namespace AssetScout.Cache
 
 		private void LoadCache()
 		{
+			DeleteLegacyCache();
+
 			if (!File.Exists(CacheFilePath))
 				return;
 
 			try
 			{
-				var json = File.ReadAllText(CacheFilePath);
-				var container = JsonUtility.FromJson<CacheContainer>(json);
-
-				_assetCache.Clear();
-				foreach (var entry in container.Entries) 
+				using (var stream = File.OpenRead(CacheFilePath))
+				using (var reader = new BinaryReader(stream))
 				{
-					var assetEntry = new Dictionary<string, Dictionary<string, List<string>>>();
-					_assetCache[entry.Guid] = assetEntry;
+					var lastRebuildTicks = reader.ReadInt64();
 
-					if (entry.ProcessorGroups == null || entry.ProcessorGroups.Count == 0)
+					_assetCache.Clear();
+					var entryCount = reader.ReadInt32();
+					for (var i = 0; i < entryCount; i++)
 					{
-						var defaultProcessorId = typeof(DefaultReferenceProcessor).FullName;
-						
-						var oldReferences = entry.GetType().GetField("References")?.GetValue(entry) as List<SerializedReference>;
-						if (oldReferences != null && oldReferences.Count > 0)
-						{
-							var processorDict = new Dictionary<string, List<string>>();
-							assetEntry[defaultProcessorId] = processorDict;
+						var targetGuid = reader.ReadString();
+						var processorCount = reader.ReadInt32();
+						var assetEntry = new Dictionary<string, Dictionary<string, List<string>>>(processorCount);
+						_assetCache[targetGuid] = assetEntry;
 
-							foreach (var reference in oldReferences)
+						for (var p = 0; p < processorCount; p++)
+						{
+							var processorId = reader.ReadString();
+							var refCount = reader.ReadInt32();
+							var processorDict = new Dictionary<string, List<string>>(refCount);
+							assetEntry[processorId] = processorDict;
+
+							for (var r = 0; r < refCount; r++)
 							{
-								processorDict[reference.TargetGuid] = reference.Paths;
+								var sourceGuid = reader.ReadString();
+								var pathCount = reader.ReadInt32();
+								var paths = new List<string>(pathCount);
+								for (var s = 0; s < pathCount; s++)
+								{
+									paths.Add(reader.ReadString());
+								}
+								processorDict[sourceGuid] = paths;
 							}
 						}
 					}
-					else
-					{
-						foreach (var group in entry.ProcessorGroups)
-						{
-							var processorDict = new Dictionary<string, List<string>>();
-							assetEntry[group.ProcessorId] = processorDict;
 
-							foreach (var reference in group.References)
-							{
-								processorDict[reference.TargetGuid] = reference.Paths;
-							}
-						}
+					_assetHashMap.Clear();
+					var hashCount = reader.ReadInt32();
+					for (var i = 0; i < hashCount; i++)
+					{
+						var guid = reader.ReadString();
+						var hash = reader.ReadInt64();
+						_assetHashMap[guid] = hash;
 					}
-				}
 
-				_assetHashMap.Clear();
-				if (container.AssetHashes != null)
-				{
-					foreach (var hash in container.AssetHashes)
+					RebuildForwardIndex();
+
+					if (lastRebuildTicks >= DateTime.MinValue.Ticks && lastRebuildTicks <= DateTime.MaxValue.Ticks)
 					{
-						_assetHashMap[hash.Guid] = hash.Hash;
-					}
-				}
-
-				RebuildForwardIndex();
-
-				try
-				{
-					if (container.LastRebuildTime >= DateTime.MinValue.Ticks && container.LastRebuildTime <= DateTime.MaxValue.Ticks)
-					{
-						_lastRebuildTime = new DateTime(container.LastRebuildTime);
+						_lastRebuildTime = new DateTime(lastRebuildTicks);
 					}
 					else
 					{
 						_lastRebuildTime = DateTime.Now;
-						Debug.LogError($"Invalid LastRebuildTime value in cache: {container.LastRebuildTime}. Using current time instead.");
 					}
-				}
-				catch (Exception timeEx)
-				{
-					_lastRebuildTime = DateTime.Now;
-					Debug.LogError($"Failed to parse LastRebuildTime: {timeEx.Message}. Using current time instead.");
 				}
 			}
 			catch (Exception e)
@@ -501,6 +474,14 @@ namespace AssetScout.Cache
 				_assetCache.Clear();
 				_forwardIndex.Clear();
 				_assetHashMap.Clear();
+			}
+		}
+
+		private static void DeleteLegacyCache()
+		{
+			if (File.Exists(LegacyCacheFilePath))
+			{
+				File.Delete(LegacyCacheFilePath);
 			}
 		}
 
@@ -542,41 +523,5 @@ namespace AssetScout.Cache
 		}
 
 		private long CalculateAssetHash(string assetPath) => GetFileModifierTime(assetPath);
-
-		[Serializable]
-		private class CacheContainer
-		{
-			public long LastRebuildTime;
-			public List<SerializedEntry> Entries = new();
-			public List<SerializedAssetHash> AssetHashes = new();
-		}
-
-		[Serializable]
-		private class SerializedEntry
-		{
-			public string Guid;
-			public List<SerializedReferencesGroup> ProcessorGroups = new();
-		}
-
-		[Serializable]
-		private class SerializedReferencesGroup
-		{
-			public string ProcessorId;
-			public List<SerializedReference> References = new();
-		}
-		
-		[Serializable]
-		private class SerializedReference
-		{
-			public string TargetGuid;
-			public List<string> Paths = new();
-		}
-
-		[Serializable]
-		private class SerializedAssetHash
-		{
-			public string Guid;
-			public long Hash;
-		}
 	}
 }
