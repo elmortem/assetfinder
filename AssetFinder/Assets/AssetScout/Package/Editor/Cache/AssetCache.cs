@@ -21,6 +21,7 @@ namespace AssetScout.Cache
 
 		private List<IReferenceProcessor> _processors;
 		private readonly Dictionary<string, Dictionary<string, Dictionary<string, List<string>>>> _assetCache = new();
+		private readonly Dictionary<string, Dictionary<string, HashSet<string>>> _forwardIndex = new();
 		private readonly Dictionary<string, long> _assetHashMap = new();
 		private readonly Queue<string> _assetsToProcess = new();
 		private bool _isInitialized;
@@ -69,6 +70,7 @@ namespace AssetScout.Cache
 				if (force)
 				{
 					_assetCache.Clear();
+					_forwardIndex.Clear();
 					_assetHashMap.Clear();
 				}
 
@@ -221,6 +223,8 @@ namespace AssetScout.Cache
 
 				_assetHashMap[assetGuid] = CalculateAssetHash(assetPath);
 
+				RemoveForwardReferences(assetGuid);
+
 				var referenceResults = new Dictionary<string, Dictionary<string, HashSet<string>>>();
 				searcher.FindReferencePaths(asset, referenceResults, cancellationToken);
 				
@@ -247,6 +251,8 @@ namespace AssetScout.Cache
 						}
 						
 						processorDict[assetGuid] = new List<string>(paths);
+
+						AddForwardReference(assetGuid, processorId, targetGuid);
 					}
 				}
 			}
@@ -254,6 +260,46 @@ namespace AssetScout.Cache
 			{
 				_processingCount--;
 			}
+		}
+
+		private void RemoveForwardReferences(string sourceGuid)
+		{
+			if (!_forwardIndex.TryGetValue(sourceGuid, out var oldProcessors))
+				return;
+
+			foreach (var processorEntry in oldProcessors)
+			{
+				var processorId = processorEntry.Key;
+				var targetGuids = processorEntry.Value;
+
+				foreach (var targetGuid in targetGuids)
+				{
+					if (_assetCache.TryGetValue(targetGuid, out var targetEntry) &&
+						targetEntry.TryGetValue(processorId, out var processorDict))
+					{
+						processorDict.Remove(sourceGuid);
+					}
+				}
+			}
+
+			_forwardIndex.Remove(sourceGuid);
+		}
+
+		private void AddForwardReference(string sourceGuid, string processorId, string targetGuid)
+		{
+			if (!_forwardIndex.TryGetValue(sourceGuid, out var processors))
+			{
+				processors = new Dictionary<string, HashSet<string>>();
+				_forwardIndex[sourceGuid] = processors;
+			}
+
+			if (!processors.TryGetValue(processorId, out var targets))
+			{
+				targets = new HashSet<string>();
+				processors[processorId] = targets;
+			}
+
+			targets.Add(targetGuid);
 		}
 
 		public async void EnqueueAssetsForProcessing(IEnumerable<string> assetGuids)
@@ -432,6 +478,8 @@ namespace AssetScout.Cache
 					}
 				}
 
+				RebuildForwardIndex();
+
 				try
 				{
 					if (container.LastRebuildTime >= DateTime.MinValue.Ticks && container.LastRebuildTime <= DateTime.MaxValue.Ticks)
@@ -454,7 +502,28 @@ namespace AssetScout.Cache
 			{
 				Debug.LogError($"Failed to load AssetFinder cache: {e.Message}");
 				_assetCache.Clear();
+				_forwardIndex.Clear();
 				_assetHashMap.Clear();
+			}
+		}
+
+		private void RebuildForwardIndex()
+		{
+			_forwardIndex.Clear();
+
+			foreach (var targetEntry in _assetCache)
+			{
+				var targetGuid = targetEntry.Key;
+
+				foreach (var processorEntry in targetEntry.Value)
+				{
+					var processorId = processorEntry.Key;
+
+					foreach (var sourceGuid in processorEntry.Value.Keys)
+					{
+						AddForwardReference(sourceGuid, processorId, targetGuid);
+					}
+				}
 			}
 		}
 
