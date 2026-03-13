@@ -39,4 +39,5 @@
 - Small indie projects (~300 searchable assets) build in under 3 seconds
 - Subsequent incremental updates are much faster as they only process changed assets
 
-Asset Scout is suitable for projects of **any genre and size**. Whether you're working on a small indie game or a large-scale commercial project, Asset Scout will help you maintain a clean and efficient asset structure.
+**Asset Scout** is suitable for projects of **any genre and size**. Whether you're working on a small indie game or a 
+large-scale commercial project, Asset Scout will help you maintain a clean and efficient asset structure.
