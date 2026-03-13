@@ -146,16 +146,13 @@ namespace AssetScout.Cache
 				if (token.IsCancellationRequested)
 					return;
 
-				var currentBatch = assets.Skip(i).Take(batchSize).ToArray();
-
-				foreach (var guid in currentBatch)
+				var end = Mathf.Min(i + batchSize, assets.Count);
+				for (var j = i; j < end; j++)
 				{
-					ProcessAsset(searcher, guid, token);
+					ProcessAsset(searcher, assets[j], token);
 				}
 				
-				//Resources.UnloadUnusedAssets(); // so slow
-
-				onProgress?.Invoke(currentBatch.Length);
+				onProgress?.Invoke(end - i);
 			}
 		}
 
@@ -544,19 +541,7 @@ namespace AssetScout.Cache
 			return time;
 		}
 
-		private long CalculateAssetHash(string assetPath)
-		{
-			var lastModified = GetFileModifierTime(assetPath);
-			var dependencyHash = AssetDatabase.GetAssetDependencyHash(assetPath);
-			
-			unchecked
-			{
-				int hash = 17;
-				hash = hash * 31 + dependencyHash.GetHashCode();
-				hash = hash * 31 + lastModified.GetHashCode();
-				return hash;
-			}
-		}
+		private long CalculateAssetHash(string assetPath) => GetFileModifierTime(assetPath);
 
 		[Serializable]
 		private class CacheContainer
