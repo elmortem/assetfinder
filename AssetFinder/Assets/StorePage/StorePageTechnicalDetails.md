@@ -1,0 +1,32 @@
+- Reverse Dependency Tracking - Find all assets that reference your target asset, unlike Unity's built-in GetDependencies API
+- Type Reference Search - Find assets that use specific C# types across your project
+- Addressables Reference Search - Find assets that reference your Addressable resources through AssetReference objects
+- AssetReference Detection - Supports standard and custom AssetReference types for comprehensive Addressables tracking
+- SerializeReference Support - Discover all assets using [SerializeReference] attribute with your custom types
+- Component Usage Tracking - Find exactly which prefabs and scenes use specific component types
+- Script Asset Based Search - Correctly handles multiple types defined in a single script file
+- Nested Type Detection - Identifies usage of your types in generic collections and custom classes
+- Deep Reference Resolution - Shows exact property paths where references occur
+- Comprehensive Search - Detects references in scenes, prefabs, scriptable objects, materials, and other Unity assets
+- Detailed Results - Hierarchical view of nested references with expandable details
+- Cache System - Maintains fast search performance with automatic updates when assets change
+- Performance Optimization - Initial cache building for large projects (~35,000 assets) takes approximately 150 seconds
+- Incremental Updates - Only affected assets are re-processed, ensuring efficient updates
+- Force Rebuild Option - Available for complete cache regeneration when needed
+- Auto Refresh - Automatically updates search results when assets change (can be disabled)
+- Status Information - Shows last rebuild time and processing status
+- Custom Processor System - Extend functionality with your own search logic
+- IReferenceProcessor Interface - Create custom processors for project-specific needs
+- Support for Custom Data Types - Handle localization keys, weak references, and custom asset linking systems
+- Addressables Integration - Built-in processor for finding references through the Addressables system
+- UI Integration - Add custom search fields to the Asset Scout interface
+- Selective Enabling - Enable/disable processors individually through the interface
+- Editor Integration - Seamlessly integrates with Unity Editor workflow
+- Simple Interface - Easy drag & drop functionality for selecting target assets
+- Cross-Project Compatibility - Works with any Unity project structure
+- Asset Store Updates - Regular updates to ensure compatibility with latest Unity versions
+- Documentation - Comprehensive documentation with examples and troubleshooting
+- Dedicated Support - Active issue tracking and responsive support
+- Unity Version Support - Compatible with Unity 2022.3 or later
+- .NET Standard Compatibility - Requires .NET Standard 2.0 or later
+- No Runtime Impact - Editor-only tool with zero impact on build size or runtime performance
