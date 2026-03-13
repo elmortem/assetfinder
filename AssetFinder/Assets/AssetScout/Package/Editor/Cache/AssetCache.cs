@@ -75,9 +75,9 @@ namespace AssetScout.Cache
 					_assetHashMap.Clear();
 				}
 
-				var allAssets = AssetDatabase.FindAssets("", new[] { "Assets" });
-				//var allAssets = AssetDatabase.FindAssets(
-				//	"t:GameObject t:ScriptableObject t:Material t:SceneAsset t:SpriteAtlas", new[] { "Assets" });
+				//var allAssets = AssetDatabase.FindAssets("", new[] { "Assets" });
+				var allAssets = AssetDatabase.FindAssets(
+					"t:GameObject t:ScriptableObject t:Material t:SceneAsset t:SpriteAtlas", new[] { "Assets" });
 				//var allAssets = AssetDatabase.FindAssets("t:GameObject Test", new[] { "Assets" });
 				//var allAssets = AssetDatabase.FindAssets("t:Scene Sample", new[] { "Assets" });
 
@@ -399,7 +399,7 @@ namespace AssetScout.Cache
 			}
 			catch (Exception e)
 			{
-				Debug.LogError($"Failed to save AssetFinder cache: {e.Message}");
+				Debug.LogError($"Failed to save Asset Scout cache: {e.Message}");
 			}
 		}
 
@@ -470,7 +470,7 @@ namespace AssetScout.Cache
 			}
 			catch (Exception e)
 			{
-				Debug.LogError($"Failed to load AssetFinder cache: {e.Message}");
+				Debug.LogError($"Failed to load Asset Scout cache: {e.Message}");
 				_assetCache.Clear();
 				_forwardIndex.Clear();
 				_assetHashMap.Clear();

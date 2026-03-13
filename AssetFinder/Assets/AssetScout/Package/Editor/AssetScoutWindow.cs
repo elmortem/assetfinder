@@ -291,11 +291,11 @@ namespace AssetScout.Editor
 			try
 			{
 				var cancel = new CancellationTokenSource();
-				EditorUtility.DisplayProgressBar("Rebuilding Asset Finder Cache", "Please wait...", 0.001f);
+				EditorUtility.DisplayProgressBar("Rebuilding Asset Scout Cache", "Please wait...", 0.001f);
 				AssetCache.Instance.RebuildCache(force, (count, max) =>
 				{
 					var progress = count / (float)max;
-					if (EditorUtility.DisplayCancelableProgressBar("Rebuilding Asset Finder Cache",
+					if (EditorUtility.DisplayCancelableProgressBar("Rebuilding Asset Scout Cache",
 						$"Progress: {count}/{max} ({progress * 100f:F2}%)", progress))
 					{
 						cancel.Cancel();

@@ -10,7 +10,7 @@
 - Comprehensive Search - Detects references in scenes, prefabs, scriptable objects, materials, and other Unity assets
 - Detailed Results - Hierarchical view of nested references with expandable details
 - Cache System - Maintains fast search performance with automatic updates when assets change
-- Performance Optimization - Initial cache building for large projects (~35,000 assets) takes approximately 150 seconds
+- Performance Optimization - Initial cache building for large projects (~70,000 searchable assets) takes approximately 160 seconds; small projects (~300 assets) build in under 3 seconds
 - Incremental Updates - Only affected assets are re-processed, ensuring efficient updates
 - Force Rebuild Option - Available for complete cache regeneration when needed
 - Auto Refresh - Automatically updates search results when assets change (can be disabled)
