@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Threading;
-using System.Threading.Tasks;
 using AssetScout.Crawlers;
 using UnityEditor;
 using UnityEngine;
@@ -9,14 +8,14 @@ namespace AssetScout.Search
 {
 	internal class ObjectReferenceSearcher
 	{
-		private readonly List<IReferenceProcessor> _processors;
+		private readonly List<IReferenceIndexer> _indexers;
 
-		public ObjectReferenceSearcher(List<IReferenceProcessor> processors)
+		public ObjectReferenceSearcher(List<IReferenceIndexer> indexers)
 		{
-			_processors = processors ?? new List<IReferenceProcessor>();
-			foreach (var processor in _processors)
+			_indexers = indexers ?? new List<IReferenceIndexer>();
+			foreach (var indexer in _indexers)
 			{
-				processor.Reset();
+				indexer.Reset();
 			}
 		}
 
@@ -29,24 +28,24 @@ namespace AssetScout.Search
 				return;
 
 			var assetGuid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(sourceAsset));
-			
+
 			bool ProccessElement(object currentObject, TraversalContext context)
 			{
 				bool shouldCrawlDeeper = true;
-				foreach (var processor in _processors)
+				foreach (var indexer in _indexers)
 				{
-					if (!processor.ShouldCrawlDeeper(currentObject, context))
+					if (!indexer.ShouldCrawlDeeper(currentObject, context))
 					{
 						shouldCrawlDeeper = false;
 					}
 
-					if (!results.TryGetValue(processor.Id, out var processorResults))
+					if (!results.TryGetValue(indexer.Id, out var indexerResults))
 					{
-						processorResults = new Dictionary<string, HashSet<string>>();
-						results[processor.Id] = processorResults;
+						indexerResults = new Dictionary<string, HashSet<string>>();
+						results[indexer.Id] = indexerResults;
 					}
 
-					processor.ProcessElement(currentObject, context, assetGuid, processorResults);
+					indexer.ProcessElement(currentObject, context, assetGuid, indexerResults);
 				}
 
 				return shouldCrawlDeeper;

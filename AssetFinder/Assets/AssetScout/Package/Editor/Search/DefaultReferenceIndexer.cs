@@ -7,33 +7,12 @@ using Object = UnityEngine.Object;
 
 namespace AssetScout.Search
 {
-	internal class DefaultReferenceProcessor : IReferenceProcessor
+	internal class DefaultReferenceIndexer : IReferenceIndexer
 	{
-		public string Id => typeof(DefaultReferenceProcessor).FullName;
-
-		private Object _targetAsset;
-		private string _searchKey;
+		public string Id => typeof(DefaultReferenceIndexer).FullName;
 
 		public void Reset()
 		{
-		}
-
-		public string DrawGUI(string searchKey, bool active)
-		{
-			if (_targetAsset == null && !string.IsNullOrEmpty(searchKey))
-			{
-				_targetAsset = AssetDatabase.LoadAssetAtPath<Object>(AssetDatabase.GUIDToAssetPath(searchKey));
-				_searchKey = searchKey;
-			}
-
-			var newAsset = EditorGUILayout.ObjectField(_targetAsset, typeof(Object), false);
-			if (newAsset != _targetAsset)
-			{
-				_targetAsset = newAsset;
-				_searchKey = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(_targetAsset));
-			}
-
-			return _searchKey;
 		}
 
 		public void ProcessElement(object element, TraversalContext context, string assetGuid,

@@ -5,12 +5,12 @@ namespace AssetScout.Cache
 {
 	public class AssetReference
 	{
-		public Object Asset { get; }
+		public Object SourceObject { get; }
 		public HashSet<string> Paths { get; } = new();
 
-		public AssetReference(Object asset)
+		public AssetReference(Object sourceObject)
 		{
-			Asset = asset;
+			SourceObject = sourceObject;
 		}
 	}
 }

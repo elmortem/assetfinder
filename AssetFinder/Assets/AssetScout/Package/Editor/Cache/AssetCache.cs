@@ -20,7 +20,7 @@ namespace AssetScout.Cache
 
 		public event Action CacheSaveEvent;
 
-		private List<IReferenceProcessor> _processors;
+		private List<IReferenceIndexer> _indexers;
 		private readonly Dictionary<string, Dictionary<string, Dictionary<string, List<string>>>> _assetCache = new();
 		private readonly Dictionary<string, Dictionary<string, HashSet<string>>> _forwardIndex = new();
 		private readonly Dictionary<string, long> _assetHashMap = new();
@@ -43,17 +43,17 @@ namespace AssetScout.Cache
 			_isInitialized = true;
 		}
 
-		public void SetProcessors(List<IReferenceProcessor> processors)
+		public void SetIndexers(List<IReferenceIndexer> indexers)
 		{
-			_processors = processors;
+			_indexers = indexers;
 		}
 
 		public void RebuildCache(bool force = false, Action<int, int> onProgress = null,
 			CancellationToken cancellationToken = default)
 		{
-			if (_processors == null || _processors.Count <= 0)
+			if (_indexers == null || _indexers.Count <= 0)
 			{
-				Debug.LogError("Preprocessors not set");
+				Debug.LogError("Indexers not set");
 				return;
 			}
 
@@ -75,11 +75,8 @@ namespace AssetScout.Cache
 					_assetHashMap.Clear();
 				}
 
-				//var allAssets = AssetDatabase.FindAssets("", new[] { "Assets" });
 				var allAssets = AssetDatabase.FindAssets(
 					"t:GameObject t:ScriptableObject t:Material t:SceneAsset t:SpriteAtlas", new[] { "Assets" });
-				//var allAssets = AssetDatabase.FindAssets("t:GameObject Test", new[] { "Assets" });
-				//var allAssets = AssetDatabase.FindAssets("t:Scene Sample", new[] { "Assets" });
 
 				var assetsToProcess = new List<string>();
 
@@ -133,7 +130,7 @@ namespace AssetScout.Cache
 		private void ProcessAssets(List<string> assets, Action<int> onProgress,
 			CancellationToken token)
 		{
-			var searcher = new ObjectReferenceSearcher(_processors);
+			var searcher = new ObjectReferenceSearcher(_indexers);
 
 			var batchSize = Mathf.Max(10, Mathf.Min(100, Mathf.FloorToInt(Mathf.Sqrt(assets.Count))));
 			Debug.Log($"Assets count: {assets.Count}");
@@ -149,19 +146,19 @@ namespace AssetScout.Cache
 				{
 					ProcessAsset(searcher, assets[j], token);
 				}
-				
+
 				onProgress?.Invoke(end - i);
 			}
 		}
 
-		public Dictionary<string, HashSet<string>> FindReferences(string key, string processorId = null)
+		public Dictionary<string, HashSet<string>> FindReferences(string key, string indexerId = null)
 		{
 			if (!_isInitialized)
 			{
 				LoadCache();
 				_isInitialized = true;
 			}
-			
+
 			var results = new Dictionary<string, HashSet<string>>();
 
 			if (!_assetCache.TryGetValue(key, out var entry))
@@ -169,11 +166,11 @@ namespace AssetScout.Cache
 				return results;
 			}
 
-			if (!string.IsNullOrEmpty(processorId))
+			if (!string.IsNullOrEmpty(indexerId))
 			{
-				if (entry.TryGetValue(processorId, out var processorData))
+				if (entry.TryGetValue(indexerId, out var indexerData))
 				{
-					foreach (var reference in processorData)
+					foreach (var reference in indexerData)
 					{
 						results[reference.Key] = new HashSet<string>(reference.Value);
 					}
@@ -181,9 +178,9 @@ namespace AssetScout.Cache
 			}
 			else
 			{
-				foreach (var processor in entry)
+				foreach (var indexerEntry in entry)
 				{
-					foreach (var reference in processor.Value)
+					foreach (var reference in indexerEntry.Value)
 					{
 						if (!results.TryGetValue(reference.Key, out var paths))
 						{
@@ -222,32 +219,32 @@ namespace AssetScout.Cache
 
 				var referenceResults = new Dictionary<string, Dictionary<string, HashSet<string>>>();
 				searcher.FindReferencePaths(asset, referenceResults, cancellationToken);
-				
-				foreach (var processorEntry in referenceResults)
+
+				foreach (var indexerEntry in referenceResults)
 				{
-					var processorId = processorEntry.Key;
-					var references = processorEntry.Value;
-					
+					var indexerIdKey = indexerEntry.Key;
+					var references = indexerEntry.Value;
+
 					foreach (var referenceEntry in references)
 					{
 						var targetGuid = referenceEntry.Key;
 						var paths = referenceEntry.Value;
-						
+
 						if (!_assetCache.TryGetValue(targetGuid, out var targetEntry))
 						{
 							targetEntry = new Dictionary<string, Dictionary<string, List<string>>>();
 							_assetCache[targetGuid] = targetEntry;
 						}
-						
-						if (!targetEntry.TryGetValue(processorId, out var processorDict))
-						{
-							processorDict = new Dictionary<string, List<string>>();
-							targetEntry[processorId] = processorDict;
-						}
-						
-						processorDict[assetGuid] = new List<string>(paths);
 
-						AddForwardReference(assetGuid, processorId, targetGuid);
+						if (!targetEntry.TryGetValue(indexerIdKey, out var indexerDict))
+						{
+							indexerDict = new Dictionary<string, List<string>>();
+							targetEntry[indexerIdKey] = indexerDict;
+						}
+
+						indexerDict[assetGuid] = new List<string>(paths);
+
+						AddForwardReference(assetGuid, indexerIdKey, targetGuid);
 					}
 				}
 			}
@@ -259,20 +256,20 @@ namespace AssetScout.Cache
 
 		private void RemoveForwardReferences(string sourceGuid)
 		{
-			if (!_forwardIndex.TryGetValue(sourceGuid, out var oldProcessors))
+			if (!_forwardIndex.TryGetValue(sourceGuid, out var oldIndexers))
 				return;
 
-			foreach (var processorEntry in oldProcessors)
+			foreach (var indexerEntry in oldIndexers)
 			{
-				var processorId = processorEntry.Key;
-				var targetGuids = processorEntry.Value;
+				var indexerId = indexerEntry.Key;
+				var targetGuids = indexerEntry.Value;
 
 				foreach (var targetGuid in targetGuids)
 				{
 					if (_assetCache.TryGetValue(targetGuid, out var targetEntry) &&
-						targetEntry.TryGetValue(processorId, out var processorDict))
+						targetEntry.TryGetValue(indexerId, out var indexerDict))
 					{
-						processorDict.Remove(sourceGuid);
+						indexerDict.Remove(sourceGuid);
 					}
 				}
 			}
@@ -280,18 +277,18 @@ namespace AssetScout.Cache
 			_forwardIndex.Remove(sourceGuid);
 		}
 
-		private void AddForwardReference(string sourceGuid, string processorId, string targetGuid)
+		private void AddForwardReference(string sourceGuid, string indexerId, string targetGuid)
 		{
-			if (!_forwardIndex.TryGetValue(sourceGuid, out var processors))
+			if (!_forwardIndex.TryGetValue(sourceGuid, out var indexers))
 			{
-				processors = new Dictionary<string, HashSet<string>>();
-				_forwardIndex[sourceGuid] = processors;
+				indexers = new Dictionary<string, HashSet<string>>();
+				_forwardIndex[sourceGuid] = indexers;
 			}
 
-			if (!processors.TryGetValue(processorId, out var targets))
+			if (!indexers.TryGetValue(indexerId, out var targets))
 			{
 				targets = new HashSet<string>();
-				processors[processorId] = targets;
+				indexers[indexerId] = targets;
 			}
 
 			targets.Add(targetGuid);
@@ -305,7 +302,7 @@ namespace AssetScout.Cache
 			if (_processingCts == null)
 			{
 				ClearFileModifierTimeCache();
-				var searcher = new ObjectReferenceSearcher(_processors);
+				var searcher = new ObjectReferenceSearcher(_indexers);
 				_processingCts = new CancellationTokenSource();
 				await ProcessAssetsAsync(searcher, _processingCts.Token);
 			}
@@ -370,12 +367,12 @@ namespace AssetScout.Cache
 						writer.Write(kvp.Key);
 						writer.Write(kvp.Value.Count);
 
-						foreach (var processorKvp in kvp.Value)
+						foreach (var indexerKvp in kvp.Value)
 						{
-							writer.Write(processorKvp.Key);
-							writer.Write(processorKvp.Value.Count);
+							writer.Write(indexerKvp.Key);
+							writer.Write(indexerKvp.Value.Count);
 
-							foreach (var referenceKvp in processorKvp.Value)
+							foreach (var referenceKvp in indexerKvp.Value)
 							{
 								writer.Write(referenceKvp.Key);
 								writer.Write(referenceKvp.Value.Count);
@@ -422,16 +419,16 @@ namespace AssetScout.Cache
 					for (var i = 0; i < entryCount; i++)
 					{
 						var targetGuid = reader.ReadString();
-						var processorCount = reader.ReadInt32();
-						var assetEntry = new Dictionary<string, Dictionary<string, List<string>>>(processorCount);
+						var indexerCount = reader.ReadInt32();
+						var assetEntry = new Dictionary<string, Dictionary<string, List<string>>>(indexerCount);
 						_assetCache[targetGuid] = assetEntry;
 
-						for (var p = 0; p < processorCount; p++)
+						for (var p = 0; p < indexerCount; p++)
 						{
-							var processorId = reader.ReadString();
+							var indexerId = reader.ReadString();
 							var refCount = reader.ReadInt32();
-							var processorDict = new Dictionary<string, List<string>>(refCount);
-							assetEntry[processorId] = processorDict;
+							var indexerDict = new Dictionary<string, List<string>>(refCount);
+							assetEntry[indexerId] = indexerDict;
 
 							for (var r = 0; r < refCount; r++)
 							{
@@ -442,7 +439,7 @@ namespace AssetScout.Cache
 								{
 									paths.Add(reader.ReadString());
 								}
-								processorDict[sourceGuid] = paths;
+								indexerDict[sourceGuid] = paths;
 							}
 						}
 					}
@@ -493,13 +490,13 @@ namespace AssetScout.Cache
 			{
 				var targetGuid = targetEntry.Key;
 
-				foreach (var processorEntry in targetEntry.Value)
+				foreach (var indexerEntry in targetEntry.Value)
 				{
-					var processorId = processorEntry.Key;
+					var indexerId = indexerEntry.Key;
 
-					foreach (var sourceGuid in processorEntry.Value.Keys)
+					foreach (var sourceGuid in indexerEntry.Value.Keys)
 					{
-						AddForwardReference(sourceGuid, processorId, targetGuid);
+						AddForwardReference(sourceGuid, indexerId, targetGuid);
 					}
 				}
 			}

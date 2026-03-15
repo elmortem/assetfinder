@@ -2,8 +2,10 @@ using UnityEngine;
 using UnityEditor;
 using UnityEngine.UIElements;
 using System.IO;
+using System;
 using System.Collections.Generic;
-using UnityEngine.Serialization;
+using System.Linq;
+using AssetScout.Search;
 
 namespace AssetScout.Cache
 {
@@ -60,12 +62,13 @@ namespace AssetScout.Cache
 		}
 
 		[SerializeField]
-		private bool _autoUpdateCache = true;
+		private bool _autoUpdateCache;
 		[SerializeField]
 		private bool _autoRefresh = true;
 		[SerializeField, HideInInspector]
-		[FormerlySerializedAs("_processorStates")]
-		private List<string> _processorDisabled = new();
+		private List<string> _indexerDisabled = new();
+		[SerializeField, HideInInspector]
+		private List<string> _providerDisabled = new();
 
 		public bool AutoUpdateCache
 		{
@@ -93,21 +96,46 @@ namespace AssetScout.Cache
 			}
 		}
 
-		public bool GetProcessorState(string processorId)
+		public bool GetIndexerState(string typeName)
 		{
-			return !_processorDisabled.Contains(processorId);
+			return !_indexerDisabled.Contains(typeName);
 		}
 
-		public void SetProcessorState(string processorId, bool state)
+		public void SetIndexerState(string typeName, bool state)
 		{
 			if (!state)
-				_processorDisabled.Add(processorId);
+			{
+				if (!_indexerDisabled.Contains(typeName))
+					_indexerDisabled.Add(typeName);
+			}
 			else
-				_processorDisabled.Remove(processorId);
-			
+			{
+				_indexerDisabled.Remove(typeName);
+			}
+
 			SaveSettings();
 		}
-		
+
+		public bool GetProviderState(string typeName)
+		{
+			return !_providerDisabled.Contains(typeName);
+		}
+
+		public void SetProviderState(string typeName, bool state)
+		{
+			if (!state)
+			{
+				if (!_providerDisabled.Contains(typeName))
+					_providerDisabled.Add(typeName);
+			}
+			else
+			{
+				_providerDisabled.Remove(typeName);
+			}
+
+			SaveSettings();
+		}
+
 		[MenuItem("Tools/Asset Scout/Settings")]
 		static void OpenProjectSettings()
 		{
@@ -119,7 +147,8 @@ namespace AssetScout.Cache
 	{
 		private bool _autoUpdateCache;
 		private bool _autoRefresh;
-		private float _updateDelay;
+		private List<Type> _indexerTypes;
+		private Dictionary<string, bool> _indexerStates;
 
 		private static class Styles
 		{
@@ -137,6 +166,26 @@ namespace AssetScout.Cache
 			var settings = AssetScoutSettings.Instance;
 			_autoUpdateCache = settings.AutoUpdateCache;
 			_autoRefresh = settings.AutoRefresh;
+
+			LoadIndexerTypes();
+		}
+
+		private void LoadIndexerTypes()
+		{
+			_indexerStates = new Dictionary<string, bool>();
+
+			_indexerTypes = AppDomain.CurrentDomain.GetAssemblies()
+				.SelectMany(a => a.GetTypes())
+				.Where(t => typeof(IReferenceIndexer).IsAssignableFrom(t)
+							&& !t.IsInterface && !t.IsAbstract)
+				.ToList();
+
+			foreach (var type in _indexerTypes)
+			{
+				var typeName = type.FullName;
+				if (!string.IsNullOrEmpty(typeName))
+					_indexerStates[typeName] = AssetScoutSettings.Instance.GetIndexerState(typeName);
+			}
 		}
 
 		public override void OnGUI(string searchContext)
@@ -160,13 +209,40 @@ namespace AssetScout.Cache
 			}
 
 			EditorGUILayout.Space();
+
+			using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+			{
+				EditorGUILayout.LabelField("Indexers", EditorStyles.boldLabel);
+				EditorGUILayout.Space();
+
+				if (_indexerTypes != null)
+				{
+					foreach (var type in _indexerTypes)
+					{
+						var typeName = type.FullName;
+						if (string.IsNullOrEmpty(typeName))
+							continue;
+
+						EditorGUI.BeginChangeCheck();
+						var oldState = _indexerStates.TryGetValue(typeName, out var s) && s;
+						var newState = EditorGUILayout.ToggleLeft(type.Name, oldState);
+						if (EditorGUI.EndChangeCheck())
+						{
+							_indexerStates[typeName] = newState;
+							settings.SetIndexerState(typeName, newState);
+						}
+					}
+				}
+			}
+
+			EditorGUILayout.Space();
 			using (new EditorGUILayout.HorizontalScope())
 			{
 				GUILayout.FlexibleSpace();
 				if (GUILayout.Button("Reset to Defaults", GUILayout.Width(120)))
 				{
 					settings.AutoUpdateCache = false;
-					settings.AutoRefresh = false;
+					settings.AutoRefresh = true;
 
 					_autoUpdateCache = settings.AutoUpdateCache;
 					_autoRefresh = settings.AutoRefresh;

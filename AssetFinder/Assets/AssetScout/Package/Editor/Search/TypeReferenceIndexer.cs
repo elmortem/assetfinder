@@ -9,9 +9,9 @@ using UnityEngine;
 
 namespace AssetScout.Search
 {
-	internal class TypeReferenceProcessor : IReferenceProcessor
+	internal class TypeReferenceIndexer : IReferenceIndexer
 	{
-		public string Id => typeof(TypeReferenceProcessor).FullName;
+		public string Id => typeof(TypeReferenceIndexer).FullName;
 
 		private readonly Dictionary<Type, string> _typeToScriptGuidCache = new();
 		private readonly HashSet<System.Reflection.Assembly> _projectAssemblies = new();
@@ -24,11 +24,6 @@ namespace AssetScout.Search
 
 		public void Reset()
 		{
-		}
-
-		public string DrawGUI(string searchKey, bool active)
-		{
-			return searchKey;
 		}
 
 		public void ProcessElement(object element, TraversalContext context, string assetGuid,

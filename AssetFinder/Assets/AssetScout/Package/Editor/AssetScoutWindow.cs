@@ -6,6 +6,8 @@ using System.Linq;
 using System.Threading;
 using AssetScout.Cache;
 using AssetScout.Search;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 namespace AssetScout.Editor
@@ -14,16 +16,16 @@ namespace AssetScout.Editor
 	{
 		private readonly char[] _animChars = { '|', '|', '/', '/', '-', '-', '\\', '\\' };
 
-		private string _searchKey = string.Empty;
+		private Object _targetObject;
 		private Vector2 _scrollPosition;
 		private int _processingDrawIndex;
 		private readonly List<AssetReference> _foundReferences = new();
 
-		private bool _showProcessors;
-		private List<Type> _processorTypes;
-		private List<IReferenceProcessor> _processors;
-		private Dictionary<string, bool> _processorStates;
+		private bool _showProviders;
+		private List<ISearchProvider> _providers;
+		private Dictionary<string, bool> _providerStates;
 
+		private SearchContext _searchContext;
 
 		[MenuItem("Tools/Asset Scout/Asset Scout Window")]
 		public static void ShowWindow()
@@ -36,10 +38,11 @@ namespace AssetScout.Editor
 			AssetCache.Instance.CacheSaveEvent -= OnCacheSaved;
 			AssetCache.Instance.CacheSaveEvent += OnCacheSaved;
 
-			LoadProcessors();
+			LoadProviders();
+			EnsureIndexersSetOnCache();
 
-			if (!string.IsNullOrEmpty(_searchKey) && 
-				_foundReferences.Count == 0 && 
+			if (_targetObject != null &&
+				_foundReferences.Count == 0 &&
 				AssetScoutSettings.Instance.AutoRefresh)
 			{
 				StartNewSearch();
@@ -48,71 +51,42 @@ namespace AssetScout.Editor
 
 		private void OnCacheSaved()
 		{
-			if (!string.IsNullOrEmpty(_searchKey) && AssetScoutSettings.Instance.AutoRefresh)
+			if (_targetObject != null && AssetScoutSettings.Instance.AutoRefresh)
 			{
 				StartNewSearch();
 			}
 		}
 
-		private void LoadProcessors()
+		private void EnsureIndexersSetOnCache()
 		{
-			_processors = new List<IReferenceProcessor>();
-			_processorStates = new Dictionary<string, bool>();
-
-			_processorTypes = AppDomain.CurrentDomain.GetAssemblies()
-				.SelectMany(assembly => assembly.GetTypes())
-				.Where(type =>
-					typeof(IReferenceProcessor).IsAssignableFrom(type) && !type.IsInterface && !type.IsAbstract)
+			var allIndexers = IndexerRegistry.DiscoverIndexers();
+			var enabledIndexers = allIndexers
+				.Where(idx => AssetScoutSettings.Instance.GetIndexerState(idx.Id))
 				.ToList();
-			_processorTypes.Sort((pt1, pt2) =>
-			{
-				if (pt1 == typeof(DefaultReferenceProcessor))
-					return -1;
-				if (pt2 == typeof(DefaultReferenceProcessor))
-					return 1;
-				return string.Compare(pt1.Name, pt2.Name, StringComparison.Ordinal);
-			});
-
-			foreach (var type in _processorTypes)
-			{
-				try
-				{
-					var typeName = type.FullName;
-					if (string.IsNullOrEmpty(typeName))
-						continue;
-					
-					var state = AssetScoutSettings.Instance.GetProcessorState(typeName);
-					_processorStates[typeName] = state;
-					if (state)
-					{
-						var processor = (IReferenceProcessor)Activator.CreateInstance(type);
-						_processors.Add(processor);
-					}
-				}
-				catch (Exception e)
-				{
-					Debug.LogError($"Failed to create instance of IReferenceProcessor: {type.FullName}.  Error: {e}");
-				}
-			}
-			
-			SortProcessors();
-			AssetCache.Instance.SetProcessors(_processors);
+			AssetCache.Instance.SetIndexers(enabledIndexers);
 		}
-		
-		private void SortProcessors()
+
+		private void LoadProviders()
 		{
-			_processors.Sort((p1, p2) =>
+			_providers = SearchProviderRegistry.DiscoverProviders();
+			_providerStates = new Dictionary<string, bool>();
+
+			foreach (var provider in _providers)
 			{
-				if (p1 is DefaultReferenceProcessor)
-					return -1;
-				if (p2 is DefaultReferenceProcessor)
-					return 1;
-				return string.Compare(p1.GetType().Name, p2.GetType().Name, StringComparison.Ordinal);
-			});
+				var typeName = provider.GetType().FullName;
+				if (!string.IsNullOrEmpty(typeName))
+					_providerStates[typeName] = AssetScoutSettings.Instance.GetProviderState(typeName);
+			}
 		}
 
 		private void OnGUI()
 		{
+			// Detect stale target (e.g. left prefab stage, switched scene)
+			if (_targetObject == null && _foundReferences.Count > 0)
+			{
+				ResetSearch();
+			}
+
 			EditorGUILayout.Space(10);
 
 			EditorGUILayout.BeginHorizontal();
@@ -151,24 +125,39 @@ namespace AssetScout.Editor
 			}
 			EditorGUILayout.EndHorizontal();
 			EditorGUILayout.Space(5);
-			
-			
+
+			// Build search context
+			_searchContext = new SearchContext();
+			_searchContext.PrefabStage = PrefabStageUtility.GetCurrentPrefabStage();
+			_searchContext.ActiveScene = SceneManager.GetActiveScene();
+
+			// Unified ObjectField
 			EditorGUILayout.BeginVertical();
 
-			var newSearchKey = _searchKey;
-			foreach (var processor in _processors)
+			var newTarget = EditorGUILayout.ObjectField(_targetObject, typeof(Object), true);
+			if (newTarget != _targetObject)
 			{
-				newSearchKey = processor.DrawGUI(newSearchKey, string.IsNullOrEmpty(newSearchKey));
-			}
-			
-			if (newSearchKey != _searchKey)
-			{
-				_searchKey = newSearchKey;
-				
+				_targetObject = newTarget;
+				_searchContext.Target = _targetObject;
+
 				if (AssetScoutSettings.Instance.AutoRefresh)
 					StartNewSearch();
 				else
 					ResetSearch();
+			}
+			else
+			{
+				_searchContext.Target = _targetObject;
+			}
+
+			// Draw extra GUI from enabled providers
+			foreach (var provider in _providers)
+			{
+				var typeName = provider.GetType().FullName;
+				if (!string.IsNullOrEmpty(typeName) && _providerStates.TryGetValue(typeName, out var enabled) && enabled)
+				{
+					provider.DrawExtraGUI(_searchContext);
+				}
 			}
 
 			if (!AssetScoutSettings.Instance.AutoRefresh)
@@ -183,51 +172,27 @@ namespace AssetScout.Editor
 				EditorGUILayout.EndHorizontal();
 			}
 
-			//GUI.enabled = false;
-			//EditorGUILayout.TextField("Search Key:", _searchKey);
-			//GUI.enabled = true;
-			
 			EditorGUILayout.EndVertical();
-			
+
 			EditorGUILayout.Space();
 
-			_showProcessors = EditorGUILayout.BeginFoldoutHeaderGroup(_showProcessors, "Processors");
-			if (_showProcessors)
+			// Search Providers foldout
+			_showProviders = EditorGUILayout.BeginFoldoutHeaderGroup(_showProviders, "Search Providers");
+			if (_showProviders)
 			{
-				foreach (var type in _processorTypes)
+				foreach (var provider in _providers)
 				{
-					var typeName = type.FullName;
+					var typeName = provider.GetType().FullName;
 					if (string.IsNullOrEmpty(typeName))
 						continue;
 
 					EditorGUI.BeginChangeCheck();
-					var oldState = _processorStates[typeName];
-					var newState = EditorGUILayout.ToggleLeft(type.Name, oldState);
-					if (EditorGUI.EndChangeCheck())
+					var oldState = _providerStates.TryGetValue(typeName, out var s) && s;
+					var newState = EditorGUILayout.ToggleLeft(provider.DisplayName, oldState);
+					if (EditorGUI.EndChangeCheck() && newState != oldState)
 					{
-						_processorStates[typeName] = newState;
-						AssetScoutSettings.Instance.SetProcessorState(typeName, newState);
-
-						if (newState != oldState)
-						{
-							if (newState)
-							{
-								var processor = (IReferenceProcessor)Activator.CreateInstance(type);
-								_processors.Add(processor);
-							}
-							else
-							{
-								var toRemove = _processors.Where(p => p.GetType() == type).ToList();
-								foreach (var processor in toRemove)
-								{
-									//processor.Dispose();
-									_processors.Remove(processor);
-								}
-							}
-
-							SortProcessors();
-							AssetCache.Instance.SetProcessors(_processors);
-						}
+						_providerStates[typeName] = newState;
+						AssetScoutSettings.Instance.SetProviderState(typeName, newState);
 					}
 				}
 			}
@@ -235,23 +200,35 @@ namespace AssetScout.Editor
 
 			EditorGUILayout.Space();
 
+			// Results
 			if (_foundReferences.Count > 0)
 			{
-				EditorGUILayout.LabelField($"Found references in {_foundReferences.Count} assets:");
+				EditorGUILayout.LabelField($"Found references in {_foundReferences.Count} sources:");
 				_scrollPosition = EditorGUILayout.BeginScrollView(_scrollPosition);
 
 				foreach (var reference in _foundReferences)
 				{
 					EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
-					EditorGUILayout.ObjectField(reference.Asset, typeof(Object), false);
+					EditorGUILayout.ObjectField(reference.SourceObject, typeof(Object), true);
 
 					EditorGUI.indentLevel++;
 					int num = 0;
 					foreach (var path in reference.Paths)
 					{
-						EditorGUILayout.LabelField($"{++num}. {path}");
-						//EditorGUILayout.LabelField($"• {path}");
+						var rect = EditorGUILayout.GetControlRect();
+						EditorGUI.LabelField(rect, $"{++num}. {path}");
+
+						// Click navigation for local results
+						if (Event.current.type == EventType.MouseDown && rect.Contains(Event.current.mousePosition))
+						{
+							if (reference.SourceObject != null)
+							{
+								EditorGUIUtility.PingObject(reference.SourceObject);
+								Selection.activeObject = reference.SourceObject;
+							}
+							Event.current.Use();
+						}
 					}
 					EditorGUI.indentLevel--;
 
@@ -262,27 +239,26 @@ namespace AssetScout.Editor
 				EditorGUILayout.EndScrollView();
 			}
 
-			if (string.IsNullOrEmpty(_searchKey))
+			if (_targetObject == null && (_searchContext.Extras == null || _searchContext.Extras.Count == 0
+				|| !_searchContext.Extras.Any(kv => kv.Value is string s && !string.IsNullOrEmpty(s))))
 			{
 				EditorGUILayout.HelpBox(
-					"Drag & Drop an asset here to find all references to it in your project.\n\n" +
+					"Drag & Drop an asset or scene object here to find all references to it.\n\n" +
 					"The tool will search through:\n" +
-					"• Sprites\n" +
-					"• Prefabs\n" +
-					"• Scriptable Objects\n" +
-					"• Materials\n" +
-					"And other Unity assets...",
+					"• Project assets (global search)\n" +
+					"• Open prefab hierarchy (local search)\n" +
+					"• Loaded scene hierarchy (local search)\n" +
+					"And other sources via search providers...",
 					MessageType.Info);
 				return;
 			}
 
-			if (_foundReferences.Count == 0 && !string.IsNullOrEmpty(_searchKey))
+			if (_foundReferences.Count == 0)
 			{
 				EditorGUILayout.HelpBox(
-					$"No references found for '{_searchKey}'.\n" +
-					"Try checking if the asset/key is actually used in your project.",
+					"No references found.\n" +
+					"Try checking if the asset/object is actually used in your project.",
 					MessageType.Warning);
-				return;
 			}
 		}
 
@@ -290,6 +266,7 @@ namespace AssetScout.Editor
 		{
 			try
 			{
+				EnsureIndexersSetOnCache();
 				var cancel = new CancellationTokenSource();
 				EditorUtility.DisplayProgressBar("Rebuilding Asset Scout Cache", "Please wait...", 0.001f);
 				AssetCache.Instance.RebuildCache(force, (count, max) =>
@@ -312,34 +289,76 @@ namespace AssetScout.Editor
 		{
 			ResetSearch();
 
-			if (string.IsNullOrEmpty(_searchKey))
-				return;
-
-			try
+			if (_searchContext == null)
 			{
-				var rawResults = AssetCache.Instance.FindReferences(_searchKey);
+				_searchContext = new SearchContext();
+				_searchContext.Target = _targetObject;
+				_searchContext.PrefabStage = PrefabStageUtility.GetCurrentPrefabStage();
+				_searchContext.ActiveScene = SceneManager.GetActiveScene();
+			}
 
-				foreach (var (assetGuid, paths) in rawResults)
+			// Group results by SourceObject
+			var groupedResults = new Dictionary<Object, AssetReference>();
+
+			foreach (var provider in _providers)
+			{
+				var typeName = provider.GetType().FullName;
+				if (string.IsNullOrEmpty(typeName))
+					continue;
+				if (!_providerStates.TryGetValue(typeName, out var enabled) || !enabled)
+					continue;
+				if (!provider.CanSearch(_searchContext))
+					continue;
+
+				provider.Search(_searchContext, resultSet =>
 				{
-					var assetPath = AssetDatabase.GUIDToAssetPath(assetGuid);
-					var asset = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
-					if (asset == null) 
-						continue;
+					foreach (var result in resultSet.Results)
+					{
+						var sourceObj = result.SourceObject;
+						if (sourceObj == null)
+							continue;
 
-					var reference = new AssetReference(asset);
-					reference.Paths.UnionWith(paths);
-					_foundReferences.Add(reference);
-				}
+						if (!groupedResults.TryGetValue(sourceObj, out var assetRef))
+						{
+							assetRef = new AssetReference(sourceObj);
+							groupedResults[sourceObj] = assetRef;
+						}
+
+						// Build display path
+						var displayPath = BuildDisplayPath(result);
+						if (!string.IsNullOrEmpty(displayPath))
+							assetRef.Paths.Add(displayPath);
+					}
+				});
 			}
-			finally
+
+			_foundReferences.AddRange(groupedResults.Values);
+			Repaint();
+		}
+
+		private string BuildDisplayPath(SearchResult result)
+		{
+			if (!string.IsNullOrEmpty(result.HierarchyPath))
 			{
-				Repaint();
+				// Local result
+				var path = result.HierarchyPath;
+				if (!string.IsNullOrEmpty(result.ComponentType))
+					path += $" [{result.ComponentType}]";
+				if (!string.IsNullOrEmpty(result.PropertyPath))
+					path += $".{result.PropertyPath}";
+				return path;
 			}
+
+			// Global result — just the property path
+			return result.PropertyPath;
 		}
 
 		private void ResetSearch()
 		{
 			_foundReferences.Clear();
+
+			if (_targetObject == null)
+				_targetObject = null;
 		}
 	}
 }

@@ -9,18 +9,17 @@ using UnityEngine.AddressableAssets;
 
 namespace AssetScout.Addressables
 {
-	internal class AddressablesReferenceProcessor : IReferenceProcessor
+	internal class AddressablesReferenceIndexer : IReferenceIndexer
 	{
-		public string Id => typeof(AddressablesReferenceProcessor).FullName;
+		public string Id => typeof(AddressablesReferenceIndexer).FullName;
 
-		private string _searchKey;
 		private static Dictionary<Type, bool> _assetReferenceTypeCache = new();
 
-		public AddressablesReferenceProcessor()
+		public AddressablesReferenceIndexer()
 		{
 			CacheKnownAssetReferenceTypes();
 		}
-		
+
 		public void Reset()
 		{
 		}
@@ -57,16 +56,9 @@ namespace AssetScout.Addressables
 				_assetReferenceTypeCache[type] = isBaseAssetRef;
 				return isBaseAssetRef;
 			}
-			
 
 			_assetReferenceTypeCache[type] = false;
 			return false;
-		}
-
-		public string DrawGUI(string searchKey, bool active)
-		{
-			_searchKey = searchKey;
-			return _searchKey;
 		}
 
 		public void ProcessElement(object element, TraversalContext context, string assetGuid,
@@ -106,7 +98,7 @@ namespace AssetScout.Addressables
 			try
 			{
 				string guid = null;
-				
+
 				FieldInfo guidField = assetRefType.GetField("m_AssetGUID",
 					BindingFlags.Public | BindingFlags.NonPublic |
 					BindingFlags.Instance);

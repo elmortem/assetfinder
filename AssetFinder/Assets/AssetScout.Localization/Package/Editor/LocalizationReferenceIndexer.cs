@@ -1,28 +1,18 @@
 #if PACKAGE_LOCALIZATION
 using System.Collections.Generic;
 using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
 using AssetScout.Crawlers;
 using AssetScout.Search;
 using UnityEditor;
-using UnityEngine;
-using System.Collections;
 
 namespace AssetScout.Localization
 {
-	internal class LocalizationReferenceProcessor : IReferenceProcessor
+	internal class LocalizationReferenceIndexer : IReferenceIndexer
 	{
-		public string Id => typeof(LocalizationReferenceProcessor).FullName;
+		public string Id => typeof(LocalizationReferenceIndexer).FullName;
 
-		private string _searchKey = string.Empty;
-
-		public string DrawGUI(string searchKey, bool active)
+		public void Reset()
 		{
-			GUI.enabled = active;
-			_searchKey = EditorGUILayout.TextField("Localization Key:", _searchKey);
-			GUI.enabled = true;
-			return active ? _searchKey : searchKey;
 		}
 
 		public void ProcessElement(object element, TraversalContext context, string assetGuid, Dictionary<string, HashSet<string>> results)

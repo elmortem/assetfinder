@@ -1,5 +1,6 @@
 {
-    "_autoUpdateCache": true,
+    "_autoUpdateCache": false,
     "_autoRefresh": true,
-    "_processorDisabled": []
+    "_indexerDisabled": [],
+    "_providerDisabled": []
 }
