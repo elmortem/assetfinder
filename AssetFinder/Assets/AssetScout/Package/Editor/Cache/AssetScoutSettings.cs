@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEditor;
+using UnityEditorInternal;
 using UnityEngine.UIElements;
 using System.IO;
 using System;
@@ -61,10 +62,18 @@ namespace AssetScout.Cache
 			}
 		}
 
+		public static readonly string[] DefaultCacheAssetTypes =
+		{
+			"GameObject", "ScriptableObject", "Material", "SceneAsset",
+			"SpriteAtlas", "AnimatorController", "AnimatorOverrideController", "AnimationClip"
+		};
+
 		[SerializeField]
 		private bool _autoUpdateCache;
 		[SerializeField]
 		private bool _autoRefresh = true;
+		[SerializeField]
+		private List<string> _cacheAssetTypes = new(DefaultCacheAssetTypes);
 		[SerializeField, HideInInspector]
 		private List<string> _indexerDisabled = new();
 		[SerializeField, HideInInspector]
@@ -94,6 +103,25 @@ namespace AssetScout.Cache
 					SaveSettings();
 				}
 			}
+		}
+
+		public List<string> CacheAssetTypes => _cacheAssetTypes;
+
+		public string BuildAssetTypeFilter()
+		{
+			return string.Join(" ", _cacheAssetTypes.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => $"t:{t}"));
+		}
+
+		public void SetCacheAssetTypes(List<string> types)
+		{
+			_cacheAssetTypes = new List<string>(types);
+			SaveSettings();
+		}
+
+		public void ResetCacheAssetTypes()
+		{
+			_cacheAssetTypes = new List<string>(DefaultCacheAssetTypes);
+			SaveSettings();
 		}
 
 		public bool GetIndexerState(string typeName)
@@ -149,6 +177,8 @@ namespace AssetScout.Cache
 		private bool _autoRefresh;
 		private List<Type> _indexerTypes;
 		private Dictionary<string, bool> _indexerStates;
+		private List<string> _cacheAssetTypes;
+		private ReorderableList _assetTypesReorderableList;
 
 		private static class Styles
 		{
@@ -166,8 +196,44 @@ namespace AssetScout.Cache
 			var settings = AssetScoutSettings.Instance;
 			_autoUpdateCache = settings.AutoUpdateCache;
 			_autoRefresh = settings.AutoRefresh;
+			_cacheAssetTypes = new List<string>(settings.CacheAssetTypes);
 
+			InitAssetTypesReorderableList();
 			LoadIndexerTypes();
+		}
+
+		private void InitAssetTypesReorderableList()
+		{
+			_assetTypesReorderableList = new ReorderableList(_cacheAssetTypes, typeof(string), true, false, true, true)
+			{
+				drawElementCallback = (rect, index, _, _) =>
+				{
+					rect.y += 2;
+					rect.height = EditorGUIUtility.singleLineHeight;
+
+					EditorGUI.BeginChangeCheck();
+					var newValue = EditorGUI.TextField(rect, _cacheAssetTypes[index]);
+					if (EditorGUI.EndChangeCheck())
+					{
+						_cacheAssetTypes[index] = newValue;
+						AssetScoutSettings.Instance.SetCacheAssetTypes(_cacheAssetTypes);
+					}
+				},
+				onAddCallback = list =>
+				{
+					_cacheAssetTypes.Add("");
+					AssetScoutSettings.Instance.SetCacheAssetTypes(_cacheAssetTypes);
+				},
+				onRemoveCallback = list =>
+				{
+					_cacheAssetTypes.RemoveAt(list.index);
+					AssetScoutSettings.Instance.SetCacheAssetTypes(_cacheAssetTypes);
+				},
+				onReorderCallback = _ =>
+				{
+					AssetScoutSettings.Instance.SetCacheAssetTypes(_cacheAssetTypes);
+				}
+			};
 		}
 
 		private void LoadIndexerTypes()
@@ -212,6 +278,15 @@ namespace AssetScout.Cache
 
 			using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
 			{
+				EditorGUILayout.LabelField("Cache Asset Types", EditorStyles.boldLabel);
+				EditorGUILayout.Space();
+				_assetTypesReorderableList?.DoLayoutList();
+			}
+
+			EditorGUILayout.Space();
+
+			using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+			{
 				EditorGUILayout.LabelField("Indexers", EditorStyles.boldLabel);
 				EditorGUILayout.Space();
 
@@ -243,9 +318,12 @@ namespace AssetScout.Cache
 				{
 					settings.AutoUpdateCache = false;
 					settings.AutoRefresh = true;
+					settings.ResetCacheAssetTypes();
 
 					_autoUpdateCache = settings.AutoUpdateCache;
 					_autoRefresh = settings.AutoRefresh;
+					_cacheAssetTypes = new List<string>(settings.CacheAssetTypes);
+					InitAssetTypesReorderableList();
 				}
 			}
 		}

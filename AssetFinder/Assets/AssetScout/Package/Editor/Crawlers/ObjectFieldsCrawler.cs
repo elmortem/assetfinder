@@ -22,7 +22,8 @@ namespace AssetScout.Crawlers
 			typeof(Rect), typeof(Bounds)
 		};
 		
-		public bool CanCrawl(object currentObject) => !(currentObject is GameObject) && !(currentObject is SceneAsset);
+		public bool CanCrawl(object currentObject) =>
+			!(currentObject is GameObject) && !(currentObject is SceneAsset) && !CustomCrawler.IsSupported(currentObject);
 
 		public IEnumerable<TraversalContext> GetChildren(object currentObject, TraversalContext parentContext)
 		{
@@ -125,50 +126,6 @@ namespace AssetScout.Crawlers
 				}
 			}
 
-			if (currentObject is SpriteRenderer spriteRenderer && spriteRenderer != null)
-			{
-				if (spriteRenderer.sprite != null)
-				{
-					yield return parentContext.CreateChildContext(spriteRenderer.sprite,
-						$"{parentContext.CurrentPath}.Sprite");
-				}
-			}
-
-			if (currentObject is Material material && material != null)
-			{
-				foreach (var childContext in CustomProcessMaterial(material, parentContext))
-					yield return childContext;
-			}
-		}
-
-		private static IEnumerable<TraversalContext> CustomProcessMaterial(Material material,
-			TraversalContext parentContext)
-		{
-			if (material == null)
-                yield break;
-			
-			var shader = material.shader;
-			if (shader != null)
-			{
-				yield return parentContext.CreateChildContext(shader,
-					$"{parentContext.CurrentPath}.shader");
-			}
-
-			var propertyCount = ShaderUtil.GetPropertyCount(material.shader);
-			for (int i = 0; i < propertyCount; i++)
-			{
-				if (ShaderUtil.GetPropertyType(material.shader, i) == ShaderUtil.ShaderPropertyType.TexEnv)
-				{
-					var propertyName = ShaderUtil.GetPropertyName(material.shader, i);
-					var texture = material.GetTexture(propertyName);
-
-					if (texture != null)
-					{
-						yield return parentContext.CreateChildContext(texture,
-							$"{parentContext.CurrentPath}.{propertyName}");
-					}
-				}
-			}
 		}
 
 		private static readonly Dictionary<Type, FieldInfo[]> _cachedFields = new();

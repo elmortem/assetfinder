@@ -75,8 +75,8 @@ namespace AssetScout.Cache
 					_assetHashMap.Clear();
 				}
 
-				var allAssets = AssetDatabase.FindAssets(
-					"t:GameObject t:ScriptableObject t:Material t:SceneAsset t:SpriteAtlas", new[] { "Assets" });
+				var typeFilter = AssetScoutSettings.Instance.BuildAssetTypeFilter();
+				var allAssets = AssetDatabase.FindAssets(typeFilter, new[] { "Assets" });
 
 				var assetsToProcess = new List<string>();
 
