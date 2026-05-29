@@ -18,92 +18,108 @@ namespace AssetScout.Search
 		public void ProcessElement(object element, TraversalContext context, string assetGuid,
 			Dictionary<string, HashSet<string>> results)
 		{
-			if (element == null || !(element is Object))
+			if (element == null || !(element is Object unityObject))
 				return;
 
-			if (element is Object unityObject)
+			if (unityObject == null)
+				return;
+
+			if (unityObject is Component component)
 			{
-				if (unityObject == null)
-					return;
-				
-				if (unityObject is Component)
+				if (context.FieldInfo == null && context.PropertyInfo == null)
 					return;
 
-				var referencedGuid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(unityObject));
-				if (!string.IsNullOrEmpty(referencedGuid))
+				AddAssetReference(component, context, assetGuid, results);
+				ProcessPrefabReferences(component.gameObject, context, assetGuid, results);
+				return;
+			}
+
+			AddAssetReference(unityObject, context, assetGuid, results);
+
+			if (unityObject is GameObject go)
+			{
+				ProcessPrefabReferences(go, context, assetGuid, results);
+			}
+		}
+
+		private void AddAssetReference(Object unityObject, TraversalContext context, string assetGuid,
+			Dictionary<string, HashSet<string>> results)
+		{
+			var referencedGuid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(unityObject));
+			if (!string.IsNullOrEmpty(referencedGuid))
+			{
+				AddReference(results, assetGuid, referencedGuid, context.CurrentPath);
+			}
+		}
+
+		private void ProcessPrefabReferences(GameObject go, TraversalContext context, string assetGuid,
+			Dictionary<string, HashSet<string>> results)
+		{
+			if (go == null)
+				return;
+
+			try
+			{
+				var prefabType = PrefabUtility.GetPrefabAssetType(go);
+				var isPartOfInstance = PrefabUtility.IsPartOfPrefabInstance(go);
+				var isPartOfAsset = PrefabUtility.IsPartOfPrefabAsset(go);
+
+				if (isPartOfAsset && !isPartOfInstance)
 				{
-					AddReference(results, assetGuid, referencedGuid, context.CurrentPath);
+					var prefabAsset = PrefabUtility.GetCorrespondingObjectFromSource(go);
+					if (prefabAsset != null)
+					{
+						string prefabPath = AssetDatabase.GetAssetPath(prefabAsset);
+						var realPrefabAsset = AssetDatabase.LoadAssetAtPath<Object>(prefabPath);
+						if (realPrefabAsset == prefabAsset)
+						{
+							string prefabAssetGuid = AssetDatabase.AssetPathToGUID(prefabPath);
+							if (!string.IsNullOrEmpty(prefabAssetGuid))
+							{
+								AddReference(results, assetGuid, prefabAssetGuid, context.CurrentPath);
+							}
+						}
+					}
 				}
-				
-				if (unityObject is GameObject go)
-                {
-                	try
-                	{
-                		var prefabType = PrefabUtility.GetPrefabAssetType(go);
-                		var isPartOfInstance = PrefabUtility.IsPartOfPrefabInstance(go);
-                		var isPartOfAsset = PrefabUtility.IsPartOfPrefabAsset(go);
-    
-                		if (isPartOfAsset && !isPartOfInstance)
-                		{
-                			var prefabAsset = PrefabUtility.GetCorrespondingObjectFromSource(go);
-                			if (prefabAsset != null)
-                			{
-								string prefabPath = AssetDatabase.GetAssetPath(prefabAsset);
-								var realPrefabAsset = AssetDatabase.LoadAssetAtPath<Object>(prefabPath);
-								if (realPrefabAsset == prefabAsset)
+				else if (isPartOfInstance)
+				{
+					var prefabAsset = PrefabUtility.GetCorrespondingObjectFromOriginalSource(go);
+					if (prefabAsset != null)
+					{
+						string prefabPath = AssetDatabase.GetAssetPath(prefabAsset);
+						var realPrefabAsset = AssetDatabase.LoadAssetAtPath<Object>(prefabPath);
+						if (realPrefabAsset == prefabAsset)
+						{
+							string prefabAssetGuid = AssetDatabase.AssetPathToGUID(prefabPath);
+							if (!string.IsNullOrEmpty(prefabAssetGuid))
+							{
+								AddReference(results, assetGuid, prefabAssetGuid, context.CurrentPath);
+							}
+						}
+					}
+
+					if (prefabType == PrefabAssetType.Variant)
+					{
+						var variantAsset = PrefabUtility.GetCorrespondingObjectFromSource(go);
+						if (variantAsset != null)
+						{
+							string variantPath = AssetDatabase.GetAssetPath(variantAsset);
+							var realVariantAsset = AssetDatabase.LoadAssetAtPath<Object>(variantPath);
+							if (realVariantAsset == variantAsset)
+							{
+								string variantGuid = AssetDatabase.AssetPathToGUID(variantPath);
+								if (!string.IsNullOrEmpty(variantGuid))
 								{
-									string prefabAssetGuid =
-										AssetDatabase.AssetPathToGUID(prefabPath);
-									if (!string.IsNullOrEmpty(prefabAssetGuid))
-									{
-										AddReference(results, assetGuid, prefabAssetGuid, context.CurrentPath);
-									}
+									AddReference(results, assetGuid, variantGuid, context.CurrentPath);
 								}
 							}
-                		}
-                		else if (isPartOfInstance)
-                		{
-                			var prefabAsset = PrefabUtility.GetCorrespondingObjectFromOriginalSource(go);
-                			if (prefabAsset != null)
-                			{
-                				string prefabPath = AssetDatabase.GetAssetPath(prefabAsset);
-								var realPrefabAsset = AssetDatabase.LoadAssetAtPath<Object>(prefabPath);
-								if (realPrefabAsset == prefabAsset)
-								{
-									string prefabAssetGuid = AssetDatabase.AssetPathToGUID(prefabPath);
-
-									if (!string.IsNullOrEmpty(prefabAssetGuid))
-									{
-										AddReference(results, assetGuid, prefabAssetGuid, context.CurrentPath);
-									}
-								}
-							}
-    
-                			if (prefabType == PrefabAssetType.Variant)
-                			{
-                				var variantAsset = PrefabUtility.GetCorrespondingObjectFromSource(go);
-                				if (variantAsset != null)
-                				{
-                					string variantPath = AssetDatabase.GetAssetPath(variantAsset);
-									var realVariantAsset = AssetDatabase.LoadAssetAtPath<Object>(variantPath);
-									if (realVariantAsset == variantAsset)
-									{
-										string variantGuid = AssetDatabase.AssetPathToGUID(variantPath);
-
-										if (!string.IsNullOrEmpty(variantGuid))
-										{
-											AddReference(results, assetGuid, variantGuid, context.CurrentPath);
-										}
-									}
-								}
-                			}
-                		}
-                	}
-                	catch (Exception ex)
-                	{
-                		Debug.LogError(go + "\n" + ex);
-                	}
-                }
+						}
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				Debug.LogError(go + "\n" + ex);
 			}
 		}
 
@@ -112,7 +128,7 @@ namespace AssetScout.Search
 			var unityObject = currentObject as Object;
 			if (unityObject == null)
 				return true;
-			
+
 			if (context.FieldInfo != null || context.PropertyInfo != null)
 			{
 				return false;
